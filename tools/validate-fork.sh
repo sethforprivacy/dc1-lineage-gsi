@@ -58,11 +58,15 @@ for ref in \
 done
 
 echo "== 3/5 fork manifest target reachable =="
-FORK_REPO="$(sed -n 's/.*<project[^>]*name="\([^"]*\)".*/\1/p' "$ROOT/local_manifests/dc1.xml" | head -1)"
-if [ -n "$FORK_REPO" ]; then
-  api_file "$FORK_REPO" "README.md" "main" \
-    || fail "fork repo $FORK_REPO@main not reachable"
-  ok "$FORK_REPO@main reachable"
+FORK_PROJ="$(sed -n 's/.*<project[^>]*name="\([^"]*\)".*/\1/p' "$ROOT/local_manifests/dc1.xml" | head -1)"
+FORK_FETCH="$(sed -n 's/.*<remote[^>]*fetch="\([^"]*\)".*/\1/p' "$ROOT/local_manifests/dc1.xml" | head -1)"
+if [ -n "$FORK_PROJ" ]; then
+  ORG="$(printf '%s' "$FORK_FETCH" | sed -E 's#https?://github.com/##; s#/$##')"
+  FORK_FULL="$FORK_PROJ"
+  [ -n "$ORG" ] && FORK_FULL="$ORG/$FORK_PROJ"
+  api_file "$FORK_FULL" "README.md" "main" \
+    || fail "fork repo $FORK_FULL@main not reachable"
+  ok "$FORK_FULL@main reachable"
 fi
 
 echo "== 4/5 LineageOS base present on lineage-23.2 =="
