@@ -9,7 +9,10 @@ product fragment, exactly as the build system intends.
 
 - 64-bit Linux (or macOS for everything *except* the final build; the ROM
   itself is built on Linux in practice), 16 GB+ RAM, ~150 GB free disk,
-  `repo`, JDK 17, usual AOSP build deps (see the wiki link above).
+  `repo`, JDK 17, **git-lfs** (required by the Chromium WebView prebuilt
+  repos — a sync without it fails with
+  `Cannot initialize work tree … git-lfs filter-process: not found`),
+  usual AOSP build deps (see the wiki link above).
 - `tools/build-release.sh` automates steps 1–7 below; the manual flow is
   spelled out here for understanding.
 
