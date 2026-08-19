@@ -60,8 +60,13 @@ PaperMode-app/             No-root Android app (grayscale/refresh/warm overlay)
 - [x] Device/toolchain verified (connected via adb, stock A13, bootloader locked)
 - [x] Base decided: LineageOS 23.2 GSI (TrebleDroid), unrooted, vanilla (no GApps in-image)
 - [x] Fork delta authored (amber app, sepolicy, fragment, CI)
-- [ ] First build and on-device validation (needs bootloader unlock — see `docs/flash.md`)
-- [ ] Amber node auto-discovery validated on-device; `ro.dc1.amber.node` locked in if needed
+- [x] Delta validated against current upstream HEAD (fragment contract + patches; `tools/validate-fork.sh` passes, also in CI)
+- [x] AmberControl compiles and packages to a signed APK (`tools/build-app-local.sh`, verified)
+- [x] CI pipeline run green on GitHub Actions (detect → validate → notify)
+- [ ] First full ROM build + on-device validation (needs a ~150 GB Linux build box; see `docs/build.md`)
+- [ ] Amber node auto-discovery validated on-device; `ro.dc1.amber.node` locked in if needed (see `docs/root-walkthrough.md`)
+
+Tracking issue: https://github.com/sethforprivacy/dc1-lineage-gsi/issues/1 (updated automatically by CI)
 
 ## Getting involved / building
 
