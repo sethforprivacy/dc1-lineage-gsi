@@ -35,16 +35,6 @@ public final class AmberTile extends TileService {
         getQsTile().updateTile();
     }
 
-    @Override
-    public void onStartListeningAfterLockedChange() {
-        onStartListening();
-    }
-
-    @Override
-    public void onStopListening() {
-        super.onStopListening();
-    }
-
     private int current() {
         return Settings.System.getInt(
                 getContentResolver(), AmberService.SETTING, 0);

@@ -68,7 +68,7 @@ public final class AmberService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        ensureDefaultValue();
+        ensureDefaultValue(this);
         mirrorSetting();
         return START_STICKY;
     }
