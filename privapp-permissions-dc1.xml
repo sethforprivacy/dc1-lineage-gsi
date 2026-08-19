@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Priv-app permissions for AmberControl (com.dc1.amber).
+  Declaring WRITE_SETTINGS here is required for privileged apps so the
+  permission survives the privapp-permission whitelist check enforced on
+  system images.
+-->
+<permissions>
+    <privapp-permissions package="com.dc1.amber">
+        <permission name="android.permission.WRITE_SETTINGS"/>
+        <permission name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    </privapp-permissions>
+</permissions>

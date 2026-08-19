@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- warm sun/ember glyph for the amber frontlight -->
+    <path
+        android:fillColor="#FFB74D"
+        android:pathData="M12,7a5,5 0 1,0 0,10a5,5 0 0,0 0,-10z" />
+    <path
+        android:strokeColor="#FFB74D"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:pathData="M12,2v2.4M12,19.6V22M2,12h2.4M19.6,12H22M4.9,4.9l1.7,1.7M17.4,17.4l1.7,1.7M19.1,4.9l-1.7,1.7M6.6,17.4l-1.7,1.7" />
+</vector>

@@ -1,0 +1,25 @@
+// DC-1 amber frontlight control — rootless system app.
+// Installed as a system_ext privileged app (mirrors where the stock
+// SystemRunner lived). Runs in the system_app domain; write access to the
+// LED node is granted by sepolicy/dc1amber.te.
+android_app {
+    name: "AmberControl",
+    manifest: "AndroidManifest.xml",
+    srcs: ["src/**/*.java"],
+    resource_dirs: ["res"],
+    certificate: "platform",
+    privileged: true,
+    system_ext_specific: true,
+    // Hidden APIs (android.os.SystemProperties for ro.dc1.* props):
+    // required for system_ext/priv-app packages that drive hardware config.
+    platform_apis: true,
+    optimize: {
+        enabled: false,
+    },
+    dex_preopt: {
+        enabled: false,
+    },
+    lint: {
+        enabled: false,
+    },
+}

@@ -1,0 +1,16 @@
+{
+  "lineage_gsi": {
+    "repo": "MisterZtr/LineageOS_gsi",
+    "tag": "v2026.05.24-lineage23.2",
+    "published": "2026-05-24T11:34:29Z"
+  },
+  "trebledroid": {
+    "repo": "TrebleDroid/treble_experimentations",
+    "tag": "ci-20250617",
+    "published": "2025-06-16T20:35:14Z",
+    "asset": "patches-for-developers.zip"
+  },
+  "lineage_branch": "lineage-23.2",
+  "treble_manifest_branch": "android-16.0",
+  "checked_at": "2026-08-19T00:00:00Z"
+}

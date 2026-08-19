@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  DC-1 fork local manifest — adds this repo into the LineageOS 23.2 +
+  TrebleDroid source tree at vendor/dc1.
+
+  Usage (see docs/build.md):
+    1. repo init -u https://github.com/LineageOS/android.git -b lineage-23.2
+    2. git clone https://github.com/TrebleDroid/treble_manifest .repo/local_manifests -b android-16.0
+       rm .repo/local_manifests/replace.xml        # LineageOS build, not AOSP
+    3. cp this file into .repo/local_manifests/dc1.xml
+    4. repo sync, apply TrebleDroid patches, then:
+       cd device/phh/treble && bash generate.sh vendor/dc1/common.mk
+-->
+<manifest>
+  <remote name="dc1" fetch="https://github.com/sethforprivacy/" />
+  <project path="vendor/dc1" name="dc1-lineage-gsi" remote="dc1" revision="main" />
+</manifest>

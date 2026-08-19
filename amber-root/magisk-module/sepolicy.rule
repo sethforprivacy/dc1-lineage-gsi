@@ -1,0 +1,7 @@
+# Allow the daemon (running in shell/system context) to write the LED sysfs node
+# under enforcing SELinux. If your node lands in a different type, find it with:
+#   ls -Z <node>     (look at the 3rd field, e.g. u:object_r:sysfs_leds:s0)
+# and adjust the type below to match.
+allow shell sysfs_leds dir { search read open }
+allow shell sysfs_leds file { getattr open read write }
+allow system_app sysfs_leds file { getattr open read write }

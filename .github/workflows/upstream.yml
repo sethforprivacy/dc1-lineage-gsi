@@ -1,0 +1,78 @@
+name: Upstream check
+
+# Detects new upstream releases (LineageOS GSI + TrebleDroid patches),
+# validates that the DC-1 delta still fits, and opens/updates a tracking
+# Issue so a rebuild can be triggered manually and uploaded to Releases.
+#
+# Runs daily; also on demand with workflow_dispatch.
+
+on:
+  schedule:
+    - cron: "0 5 * * *"        # 05:00 UTC daily
+  workflow_dispatch:
+    inputs:
+      force_notify:
+        description: "Open/update the tracking Issue even if nothing changed"
+        type: boolean
+        default: false
+      run_validation:
+        description: "Re-run delta validation (independent of changes)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write   # commit updated tools/upstream-state.json
+  issues: write     # open/update the tracking Issue
+
+concurrency:
+  group: upstream-check
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect upstream releases
+        id: detect
+        run: |
+          ./tools/detect-upstream.sh | tee /tmp/detect.json
+          echo "changed=$(jq -r .changed /tmp/detect.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Validate DC-1 delta against current upstream
+        id: validate
+        if: always()
+        run: |
+          rc=0
+          ./tools/validate-fork.sh > /tmp/validate.log 2>&1 || rc=$?
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          echo "VALIDATION_LOG<<VLOG" >> "$GITHUB_OUTPUT"
+          cat /tmp/validate.log
+          echo "VLOG" >> "$GITHUB_OUTPUT"
+          exit 0   # the notify step decides how to surface failures
+
+      - name: Notify via tracking Issue
+        id: notify
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHANGED: ${{ steps.detect.outputs.changed }}
+          FORCE: ${{ inputs.force_notify || 'false' }}
+          VRC: ${{ steps.validate.outputs.rc }}
+          BODY_FILE: /tmp/detect.json
+        run: |
+          if [ "$CHANGED" != "true" ] && [ "$FORCE" != "true" ]; then
+            echo "No upstream change — nothing to notify."
+            exit 0
+          fi
+          ./tools/notify-issue.sh
+
+      - name: Commit updated upstream state
+        if: steps.detect.outputs.changed == 'true'
+        run: |
+          git config user.name "dc1-gsi-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add tools/upstream-state.json
+          git commit -m "ci: record upstream release state" || true
+          git push

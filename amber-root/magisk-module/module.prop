@@ -1,0 +1,6 @@
+id=dc1_amber
+name=DC-1 Amber Frontlight Bridge
+version=v1.0.0
+versionCode=1
+author=dc1-papermode
+description=Restores the Daylight DC-1 hardware amber frontlight on GSIs/custom ROMs by mirroring screen_brightness_amber_rate to the kernel LED node. Run discover-amber-node.sh once to populate /data/adb/amberd/config.

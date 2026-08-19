@@ -1,0 +1,25 @@
+# Android / Gradle
+PaperMode-app/.gradle/
+PaperMode-app/build/
+PaperMode-app/app/build/
+PaperMode-app/local.properties
+PaperMode-app/.idea/
+*.apk
+*.iml
+
+# Scripts
+papermode-quick/.papermode_backup
+amber-root/magisk-module/dc1_amber.zip
+amber-root/magisk-module/system/
+
+# macOS
+.DS_Store
+
+# ROM build outputs (never commit build artifacts)
+out/
+*.img
+*.img.xz
+*.zip
+build-tree/
+.repo/
+ccache/
