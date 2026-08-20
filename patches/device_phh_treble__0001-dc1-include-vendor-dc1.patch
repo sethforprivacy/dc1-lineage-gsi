@@ -1,0 +1,9 @@
+diff --git a/lineage_arm64_bvN4.mk b/lineage_arm64_bvN4.mk
+--- a/lineage_arm64_bvN4.mk
++++ b/lineage_arm64_bvN4.mk
+@@ -19,3 +19,5 @@ LINEAGE_BUILD := GSI
+ #EXT4
+ LINEAGE_EXTRAVERSION := -EXT4
+ PRODUCT_EXTRA_VNDK_VERSIONS += 28 29
++
++$(call inherit-product, vendor/dc1/common.mk)
