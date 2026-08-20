@@ -1,9 +1,34 @@
 # Building the DC-1 LineageOS GSI
 
-Standard [TrebleDroid build flow](https://github.com/TrebleDroid/treble_experimentations/wiki/How-to-build-a-GSI%3F)
-plus our `vendor/dc1` fragment (inherited via `generate.sh`). The delta
-adds **zero patches to upstream trees** — `common.mk` is included as a
-product fragment, exactly as the build system intends.
+We build the **proven LineageOS-GSI composition** used by the maintained
+`LineageOS 23.2` GSI releases:
+
+- `LineageOS/android` **`lineage-23.2`** (Android 16 base)
+- `MisterZtr/treble_manifest` **`lineage-23.2`** — LOS-tuned local manifests
+  (TrebleDroid `device_phh_treble` + `vendor_interfaces` etc., but *not* the
+  AOSP-only v28/v29/v30 handling; he uses `naz664/prebuilts_vndk_v28` so the
+  VNDK modules don't collide with LineageOS's own `hardware/lineage/compat`)
+- `MisterZtr/LineageOS_gsi` **`lineage-23.2`** — his "apply-patches.sh" patch
+  layers (trebledroid / trebledroid-staging / personal) that adapt the tree
+  for LineageOS and define the `lineage_arm64_bvN4` (ext4) / `bvNE` (erofs)
+  products.
+- `vendor/dc1` — **our delta**, injected by one patch:
+  `patches/device_phh_treble__0001-dc1-include-vendor-dc1.patch` appends
+  `$(call inherit-product, vendor/dc1/common.mk)` to
+  `lineage_arm64_bvN4.mk`.
+
+Why not raw TrebleDroid `generate.sh` + `patches-for-developers.zip`? That kit
+is AOSP-targeted and largely does **not** apply to LineageOS trees (verified
+2026-08-19: ~204/205 patches unapplicable; TD's `vendor_interfaces` expects
+legacy `android.hardware.*@1.0` interfaces that LineageOS's
+`hardware/interfaces` fork dropped; TD's v28 prebuilt collides with
+`hardware/lineage/compat`). The maintained LOS-GSI builders converged on this
+composition instead — we follow them to keep "minimal, maintained, tracks
+upstream".
+
+Our delta remains: `common.mk` (amber app + sepolicy + props),
+`AmberControl/`, `sepolicy/`, `privapp-permissions-dc1.xml`,
+`local_manifests/dc1.xml`.
 
 ## Prerequisites
 
@@ -22,57 +47,49 @@ product fragment, exactly as the build system intends.
 # 1) Tree layout
 mkdir -p ~/dc1-build && cd ~/dc1-build
 
-# 2) LineageOS 23.2 (Android 16) manifest — current base
-repo init -u https://github.com/LineageOS/android.git -b lineage-23.2
+# 2) LineageOS 23.2 (Android 16) manifest — current base (--git-lfs for the WebView prebuilts)
+repo init -u https://github.com/LineageOS/android.git -b lineage-23.2 --git-lfs
 
-# 3) TrebleDroid local manifests (device/phh/treble, patches glue, vndk…)
-git clone https://github.com/TrebleDroid/treble_manifest .repo/local_manifests -b android-16.0
-# LineageOS (not AOSP) build → drop the AOSP-replacement include:
-rm .repo/local_manifests/replace.xml
+# 3) LOS-tuned local manifests (MisterZtr's lineage-23.2 branch)
+git clone https://github.com/MisterZtr/treble_manifest.git .repo/local_manifests -b lineage-23.2
 
-# 4) Add our fork as vendor/dc1
-cat > .repo/local_manifests/dc1.xml <<'EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<manifest>
-  <remote name="dc1" fetch="https://github.com/sethforprivacy/" />
-  <project path="vendor/dc1" name="dc1-lineage-gsi" remote="dc1" revision="main" />
-</manifest>
-EOF
+# 4) Add our fork as vendor/dc1 (snake/repo naming as in local_manifests/dc1.xml)
+cp /path/to/dc1-lineage-gsi/local_manifests/dc1.xml .repo/local_manifests/dc1.xml
 
 # 5) Sync
 repo sync -c -j$(nproc --ignore=2) --force-sync --no-tags --no-clone-bundle
 
-# 6) TrebleDroid device patches (fixes for non-AOSP quirks across devices incl. MediaTek)
-cd /tmp
-wget -q https://github.com/TrebleDroid/treble_experimentations/releases/latest/download/patches-for-developers.zip
-unzip -qo patches-for-developers.zip
-# Each <project>/0001-*.patch applies to that project's tree:
-#   git -C <top>/<project> am /tmp/patches-for-developers/<project>/*.patch
-# (tools/build-release.sh does this loop for you.)
+# 6) MisterZtr lineage-GSI patch layers (commits his products/interface adaptions)
+bash LineageOS_gsi/patches/apply-patches.sh .
+# A handful of patches may print "FAILED APPLYING" — benign device quirks; the
+# tree still builds (see the live run notes in the fork README/issues).
 
-# 7) Generate TrebleDroid product files with OUR fragment as the ROM base
-cd ~/dc1-build/device/phh/treble && bash generate.sh vendor/dc1/common.mk && cd -
+# 7) Our delta: one patch appends vendor/dc1/common.mk to lineage_arm64_bvN4.mk
+cd device/phh/treble && git am /path/to/dc1-lineage-gsi/patches/device_phh_treble__0001-dc1-include-vendor-dc1.patch && cd -
 
-# 8) Build — vanilla, unrooted (no-su), A/B, arm64
+# 8) TrebleApp prebuilt (gradle, bundled SDK, platform-signed) — REQUIRED by the build
+cd treble_app && bash build.sh && test -f TrebleApp.apk && cd -
+
+# 9) Build — vanilla, unrooted (user), ext4, A/B, arm64
 source build/envsetup.sh
-lunch treble_arm64_bvN-user
+ccache -M 50G
+lunch lineage_arm64_bvN4 bp4a user
 make -j$(nproc --ignore=2) systemimage
 
-# 9) Artifact
+# 10) Artifact
 ls -lh out/target/product/tdgsi_arm64_ab/system.img
 ```
 
 Notes:
 
-- `-user` (not `-userdebug`) ⇒ `ro.debuggable=0`, no `adb root`, no su —
-  the "unrooted" property of the fork. Flashing is done the same way as any
-  GSI; the first boot does not grant root.
-- If you need `adb root` for amber-node discovery **before** locking the
-  configured node, build `treble_arm64_bvN-userdebug` once for diagnostics —
-  do **not** ship it as the release build.
-- The lunch product reference (`.repo/local_manifests/dc1.xml`) maps this
-  whole repo to `vendor/dc1`; inert repo content (`docs/`, `tools/`, …) is
-  ignored by the build.
+- `user` (not `userdebug`) ⇒ `ro.debuggable=0`, no `adb root`, no su — the
+  "unrooted" property of the fork. (`breakfast lineage_arm64_bvN4-bp4a-userdebug`
+  is MisterZtr's equivalent for a debugging build; don't ship it.)
+- `bp4a` is the A16 release name this branch expects; the space-separated
+  `lunch <product> <release> <variant>` form is required since A16 lunch
+  splits on `-` (`lineage_arm64_bvN4-user` style combos are rejected).
+- `.repo/local_manifests/dc1.xml` maps this whole repo to `vendor/dc1`; inert
+  repo content (`docs/`, `tools/`, …) is ignored by the build.
 
 ## Output check
 
@@ -91,13 +108,15 @@ node on first sync.
 
 ## Keeping up to date
 
-1. `repo sync` picks up the new LineageOS branch state.
-2. Re-download and re-apply TrebleDroid patches (step 6).
-3. Re-run `generate.sh vendor/dc1/common.mk` (step 7) — this is the entire
-   "rebase" of our delta, because the delta lives in this repo, not in
-   upstream trees.
+1. `repo sync` picks up new LineageOS + MisterZtr treble_manifest state.
+2. Re-run `apply-patches.sh` (step 6) — applies/commits his latest layers on
+   the fresh tree.
+3. Re-apply our include patch + rebuild TrebleApp (steps 7–8). **That is the
+   entire "rebase" of our delta** — the delta lives in this repo, not in
+   upstream trees, so rebasing is a couple of git-am commands.
 4. Rebuild, smoke-test, release.
 
-CI (`.github/workflows/upstream.yml`) runs steps 2–3's *validation* on every
-upstream release and files an Issue when a rebuild is warranted — see
-`docs/ci.md` workflow doc included in `.github/workflows/`.
+CI (`.github/workflows/upstream.yml`) runs daily: it detects new upstream
+releases (LineageOS GSI + TrebleDroid patches), validates that our delta
+(patch apply + fragment contract) still fits current upstream, and files or
+updates the tracking Issue.
