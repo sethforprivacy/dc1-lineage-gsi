@@ -6,18 +6,19 @@
 # privileged app running in the system_app domain; these rules let it
 # discover (enumerate) and drive (write) the node under enforcing policy.
 #
+# NOTE on syntax: standard policy language requires source:class (colon),
+# e.g. `sysfs_leds:dir`. (Magisk's .rule files use space-separated classes,
+# but that conversion does NOT apply to .te files compiled by checkpolicy.)
+#
 # This is a deliberate, narrow widening of system_app: the same
 # system_app+shell rules shipped in the pre-GSI Magisk module and are
 # proven on this exact device shape with enforcing SELinux enabled.
 
-allow system_app sysfs_leds dir { search read open getattr };
-allow system_app sysfs_leds file { getattr open read write };
+allow system_app sysfs_leds:dir { search read open getattr };
+allow system_app sysfs_leds:file { getattr open read write };
 
 # fallback: some panels expose the channel under /sys/class/backlight typed
 # sysfs (kernel sysfs); allow read/write there too so discovery/write are not
 # silently blocked if the amber node lands in a non-sysfs_leds type.
-allow system_app sysfs file { getattr open read write };
+allow system_app sysfs:file { getattr open read write };
 allow system_app sysfs:dir { search read open getattr };
-
-# make sure writes are denied-silent failures visible in logcat, i.e. we do
-# NOT allow anything under vendor/firmware types — nothing to do here.
