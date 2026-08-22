@@ -12,11 +12,13 @@ validates is:
    (`generate.sh <fragment>` still emits `$(call inherit-product, …)`), and
 2. our `common.mk` still references paths that exist in this repo.
 
-If a future DC-1 fix genuinely needs a change inside an upstream tree (e.g.
-a `device_phh_treble` tweak or a LineageOS framework fix), drop the
-`git format-patch` output here as `NNNN-description.patch`; `apply.sh`
-applies them (CI validates them), and they are the *only* patches to
-maintain on each upstream rebase.
+Patch files are named `<project-path-underscores>__<NNNN>-description.patch`
+(e.g. `device_phh_treble__0001-dc1-include-vendor-dc1.patch`). The build
+runner and CI apply every `*.patch` in this directory after the upstream
+patch layers, mapping `<project-path>` back to tree paths.
+
+Current contents: `device_phh_treble__0001-dc1-include-vendor-dc1.patch`
+(appends our `vendor/dc1/common.mk` inherit to `lineage_arm64_bvN4.mk`).
 
 ## Adding a patch
 

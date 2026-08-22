@@ -2,13 +2,15 @@
 #
 # detect-upstream.sh — detect new upstream releases for the DC-1 GSI fork.
 #
-# Watches two signals:
-#   1. LineageOS GSI release  (MisterZtr/LineageOS_gsi) — the published
-#      "upstream release" that tracks LineageOS 23.2 + current ASB.
-#   2. TrebleDroid patches release (TrebleDroid/treble_experimentations)
-#      with the patches-for-developers.zip asset — the GSI patch kit we
-#      re-apply on every rebuild. (Newest release *including prereleases*,
-#      since the ci releases are published as prereleases upstream.)
+# Watches three signals (in priority order):
+#   1. LineageOS GSI release  (MisterZtr/LineageOS_gsi) — THE upstream we
+#      build from: his releases are the published LOS 23.2 GSI baselines
+#      (manifest + patch layers) that our fork layers the DC-1 delta onto.
+#   2. MisterZtr treble_manifest lineage-23.2 branch tip — the project list
+#      our tree composes from; a move here means re-sync + re-validate.
+#   3. TrebleDroid patches release (TrebleDroid/treble_experimentations,
+#      newest incl. prereleases) — informational only for the LOS flow
+#      (that kit targets AOSP trees), kept for delta comparison.
 #
 # Writes tools/upstream-state.json and prints a JSON summary with a
 # "changed" flag. Exit 0 always (workflow inspects the JSON).
@@ -33,21 +35,22 @@ api() { # <path>
 }
 
 # Newest release (incl. prerelease) that carries the patches asset.
-td="$(api '/repos/TrebleDroid/treble_experimentations/releases?per_page=30' \
-  | jq -c '[.[] | select((.assets // [] | map(.name)) | index("patches-for-developers.zip"))][0]')"
 lg="$(api '/repos/MisterZtr/LineageOS_gsi/releases/latest')"
 
-td_tag="$(jq -r '.tag_name // ""' <<<"$td")"
-td_date="$(jq -r '.published_at // ""' <<<"$td")"
+td="$(api '/repos/TrebleDroid/treble_experimentations/releases?per_page=30' \
+  | jq -c '[.[] | select((.assets // [] | map(.name)) | index("patches-for-developers.zip"))][0]')"
+
 lg_tag="$(jq -r '.tag_name // ""' <<<"$lg")"
 lg_date="$(jq -r '.published_at // ""' <<<"$lg")"
+td_tag="$(jq -r '.tag_name // ""' <<<"$td")"
+td_date="$(jq -r '.published_at // ""' <<<"$td")"
 
 prev_td="$(jq -r '.trebledroid.tag // ""' "$STATE" 2>/dev/null || true)"
 prev_lg="$(jq -r '.lineage_gsi.tag // ""' "$STATE" 2>/dev/null || true)"
 
 changed="false"
-if [ -n "$td_tag" ] && [ "$td_tag" != "$prev_td" ]; then changed="true"; fi
 if [ -n "$lg_tag" ] && [ "$lg_tag" != "$prev_lg" ]; then changed="true"; fi
+if [ -n "$td_tag" ] && [ "$td_tag" != "$prev_td" ]; then changed="true"; fi
 
 cat > "$STATE.update" <<JSON
 {
