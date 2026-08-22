@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
 #
 # apply.sh — apply the DC-1 patchset (patches/*.patch) on top of a synced
-# LineageOS + TrebleDroid tree. Currently the delta is patchless (it lives in
-# vendor/dc1 via generate.sh), so this script is a no-op that verifies that
-# contract: it checks that no *.patch files have appeared that someone forgot
-# to wire into CI.
+# LineageOS + TrebleDroid tree. Most of the delta lives in vendor/dc1 and is
+# plumbed via generate.sh; anything that must touch an upstream tree lives
+# here as a <project>__NNNN-*.patch and is applied by this script.
 #
 # Usage: apply.sh [TOP]      # TOP = Android source root (default: repo root)
 #
@@ -35,7 +34,7 @@ apply_one() {
 }
 
 found=0
-for f in "$HERE"/[0-9]*.patch; do
+for f in "$HERE"/*.patch; do
   [ -e "$f" ] || continue
   found=1
   apply_one "$f"
