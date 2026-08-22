@@ -84,3 +84,17 @@ re-sparses — one artifact, flashed with the same `fastboot flash system`.
 Reboot to fastbootd and restore the stock `system` (and `vbmeta`) images you
 backed up in the beginning; or use Daylight's OTA tooling
 (adiktofsugar/daylight) to re-image the unit.
+
+## Troubleshooting
+
+**"android.process.media has stopped working" loop after flashing over kept
+`/data`** — a previous OS build left a newer `downloads.db` schema behind
+(e.g. v116) and the GSI's DownloadProvider (v114) refuses SQLite downgrades,
+so the shared media process crash-loops. One-time fix, no wipe needed:
+
+```
+adb shell pm clear com.android.providers.downloads
+```
+
+Download history from the old OS is discarded; the provider recreates a
+compatible database immediately.
