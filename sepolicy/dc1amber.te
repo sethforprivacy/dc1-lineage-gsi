@@ -1,18 +1,34 @@
 #
-# SELinux rules for the DC-1 amber frontlight.
+# SELinux rules for the DC-1 amber frontlight (AmberControl).
 #
-# Ground truth (2026-08-22, live device): AmberControl runs in the
-# `platform_app` domain (AOSP seapp_contexts maps privileged platform-signed
-# apps to platform_app, NOT system_app). Grant exactly what the app needs:
-#   - dir: traverse/read the LED class dirs for node discovery
-#   - file: read max_brightness, write brightness
+# Writing /sys/class/leds/lcd-backlight-amber/brightness has to clear TWO
+# independent gates:
+#
+#  1. Type enforcement — AmberControl is a platform-signed priv-app, so
+#     seapp_contexts puts it in the `platform_app` domain (not system_app);
+#     the LED nodes are labelled `sysfs_leds`. Hence the allow rules below.
+#
+#  2. MLS — seapp_contexts uses levelFrom=user for app domains, so
+#     platform_app runs at s0:c512,c768 while sysfs_leds nodes sit at s0.
+#     system/sepolicy/private/mls only permits a file write when the target
+#     is app_data_file_type/appdomain_tmpfs, the levels are equal, the source
+#     is mlstrustedsubject, or the target is mlstrustedobject. None held, so
+#     writes returned EACCES even with a perfect allow rule. Marking
+#     sysfs_leds mlstrustedobject closes that gate — same treatment AOSP
+#     already gives sysfs_bluetooth_writable / sysfs_nfc_power_writable.
+#
+# These land in system_ext_sepolicy.cil via SYSTEM_EXT_PRIVATE_SEPOLICY_DIRS
+# (wired in common.mk). Neverallow assertions are off in this GSI
+# (device/phh/treble/base.mk sets SELINUX_IGNORE_NEVERALLOWS := true).
 #
 
-allow platform_app sysfs_leds:dir { search read open getattr };
-allow platform_app sysfs_leds:file { getattr open read write };
+typeattribute sysfs_leds mlstrustedobject;
 
-# fallback: some panels expose the channel under /sys/class/backlight typed
-# plain sysfs; cover that too so discovery/write are not blocked if the amber
-# node lands outside the sysfs_leds label.
-allow platform_app sysfs:file { getattr open read write };
-allow platform_app sysfs:dir { search read open getattr };
+allow { platform_app system_app } sysfs_leds:dir { search open read getattr };
+allow { platform_app system_app } sysfs_leds:lnk_file { read getattr };
+allow { platform_app system_app } sysfs_leds:file { getattr open read write append lock map };
+
+# Fallback: /sys/class/backlight/* is plain sysfs (already mlstrustedobject);
+# only the TE grant is needed there.
+allow { platform_app system_app } sysfs:dir { search open read getattr };
+allow { platform_app system_app } sysfs:file { getattr open read write };
