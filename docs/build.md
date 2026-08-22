@@ -26,9 +26,13 @@ legacy `android.hardware.*@1.0` interfaces that LineageOS's
 composition instead — we follow them to keep "minimal, maintained, tracks
 upstream".
 
-Our delta remains: `common.mk` (amber app + sepolicy + props),
+Our delta remains: `common.mk` (amber app + sepolicy + props + overlays),
 `AmberControl/`, `sepolicy/`, `privapp-permissions-dc1.xml`,
-`local_manifests/dc1.xml`.
+`dc1-excluded-hardware.xml` (masks the camera/light-sensor features the stock
+`/vendor` declares), `rro/` (framework + settings-provider RROs, which also
+carry the `overrides:` list that drops camera apps and LineageSetupWizard from
+the image), `local_manifests/dc1.xml`, plus any `patches/*.patch` applied to
+upstream trees by `patches/apply.sh`.
 
 ## Prerequisites
 

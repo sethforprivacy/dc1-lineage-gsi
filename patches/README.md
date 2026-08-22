@@ -1,12 +1,12 @@
 # Patches
 
-The DC-1 delta intentionally avoids patching upstream trees: the entire ROM
-delta is plumbed through the product fragment (`common.mk`, included by
+The DC-1 delta keeps patching of upstream trees to a minimum: nearly all of
+it is plumbed through the product fragment (`common.mk`, included by
 `generate.sh vendor/dc1/common.mk`) plus the files it references
-(`AmberControl/`, `sepolicy/`, `privapp-permissions-dc1.xml`).
+(`AmberControl/`, `sepolicy/`, `privapp-permissions-dc1.xml`,
+`dc1-excluded-hardware.xml`, `rro/`).
 
-That means there is **currently nothing to apply** — the "patchset" CI
-validates is:
+Alongside applying every `*.patch` here, CI validates that:
 
 1. `device/phh/treble` HEAD still supports the fragment flow
    (`generate.sh <fragment>` still emits `$(call inherit-product, …)`), and
@@ -35,4 +35,8 @@ git diff > /path/to/repo/patches/0001-description.patch   # or git format-patch 
 git -C <clone> apply --check --verbose patches/…
 ```
 
-against fresh shallow clones of the touched upstream projects.
+against fresh shallow clones of the touched upstream projects. For
+`device/phh/treble` the clone first gets MisterZtr's lineage-GSI patch layer
+(`patches/personal/device_phh_treble/*`) applied best-effort, because that
+layer is what creates the `lineage_arm64_bvN4.mk` product our patch appends
+to — a pristine TrebleDroid checkout does not contain it.

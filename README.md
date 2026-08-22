@@ -30,23 +30,27 @@ Full rationale: [`docs/rom-choice.md`](docs/rom-choice.md).
 |---|---|---|
 | Product fragment | inherits `vendor/lineage/config/common_full_phone.mk`, adds our packages/sepolicy/props | `common.mk` |
 | Amber frontlight | rootless system app: Quick-Settings tile + slider, mirrors `screen_brightness_amber_rate` → kernel LED (auto-discovers the node; override via `ro.dc1.amber.node`) | `AmberControl/` |
-| SELinux | lets the amber app read/write `sysfs_leds` under enforcing policy | `sepolicy/dc1amber.te` |
+| SELinux | lets the amber app (`platform_app` domain) read/write `sysfs_leds` under enforcing policy — TE allow plus `mlstrustedobject` on `sysfs_leds`, see [`docs/amber.md`](docs/amber.md) | `sepolicy/dc1amber.te` |
 | Priv-app permission | allows `WRITE_SETTINGS` to the amber app | `privapp-permissions-dc1.xml` |
+| Display/feature config | monochrome-panel + no-camera/no-light-sensor overlays, forced grayscale + 1184x1584 size props, drops camera apps & setup wizard | `rro/`, `dc1-excluded-hardware.xml`, `common.mk` |
 | Repo manifest | adds `vendor/dc1` (this repo) to the build tree | `local_manifests/dc1.xml` |
 
-Everything upstream (LineageOS, TrebleDroid patches, `device/phh/treble`) is
-left untouched; the delta is only the files above, plumbed in through
-`generate.sh vendor/dc1/common.mk` — no patches to upstream trees.
+Nearly everything upstream (LineageOS, TrebleDroid patches,
+`device/phh/treble`) is left untouched: the delta is the files above, plumbed
+in through `generate.sh vendor/dc1/common.mk`, plus the single small
+`patches/*.patch` that makes the Lineage GSI product inherit our fragment.
 
 ## Layout
 
 ```
 common.mk                  Product fragment (sycned into the tree as vendor/dc1/common.mk)
 AmberControl/              Rootless amber frontlight app (Java, platform-priv-app)
-sepolicy/                  SELinux additions for the amber app
+sepolicy/                  SELinux additions for the amber app (TE + MLS)
 privapp-permissions-dc1.xml
+dc1-excluded-hardware.xml  Masks camera + light-sensor features from stock /vendor
+rro/                       Static RROs: framework config + settings-provider defaults
 local_manifests/           repo manifest snippet for the build tree
-patches/                   Future direct-to-upstream patches (currently: none needed)
+patches/                   Direct-to-upstream patches + apply.sh
 tools/                     CI + local scripts (detect, validate, build)
 docs/                      hardware, ROM choice, build, flash, amber details
 papermode-quick/           No-root paper-mode tweaks for stock (adb, no flash)

@@ -26,7 +26,7 @@ the `AmberControl` app once — the value persists in the setting.
 ## Architecture (baked into the image)
 
 ```
-┌──────────────────────────── system_app domain (rootless) ───────────────────────────┐
+┌─────────────────────────── platform_app domain (rootless) ──────────────────────────┐
 │ AmberControl (platform-priv-app, system_ext/priv-app)                               │
 │  • QS tile "Amber"             – toggle on (default value) / off                    │
 │  • Settings activity+silder    – 0..1023                                │
@@ -42,17 +42,51 @@ the `AmberControl` app once — the value persists in the setting.
 │         - of the rest: prefer names with amber|warm|frontlight; take the single     │
 │           remaining candidate otherwise; persist the choice                          │
 └──────────────────────────────────────────────────────────────────────────────────────┘
-               │ sepolicy: allow system_app sysfs_leds { dir search/read, file rw }
+               │ sepolicy: TE allow on sysfs_leds + sysfs_leds is mlstrustedobject
                ▼
         /sys/class/leds/<node>/brightness   (kernel driver, untouched vendorkernel)
 ```
 
-- **Unrooted**: the app runs in the `system_app` domain under enforcing
-  SELinux with a narrow rule (`sepolicy/dc1amber.te`). No su, no Magisk.
+- **Unrooted**: the app runs in an app domain under enforcing SELinux with a
+  narrow rule (`sepolicy/dc1amber.te`). No su, no Magisk.
 - **Scale mapping**: setting 0..1023 → node 0..`max_brightness`
   (`value * nodeMax / 1023`), the same scaling the old Magisk bridge used.
 - **Persistence**: the setting is the source of truth (survives reboots);
   the service mirrors it to the LED immediately on change and on boot.
+
+## SELinux: two gates, not one
+
+Writing the LED node from an app has to clear **two independent checks**, and
+missing the second one is what makes an otherwise-correct policy fail with
+`EACCES` and no obvious denial:
+
+1. **Type enforcement.** AmberControl is a platform-signed priv-app, so
+   `seapp_contexts` puts it in the **`platform_app`** domain (not
+   `system_app`, which is a common wrong guess). The LED nodes are labelled
+   `sysfs_leds`. `sepolicy/dc1amber.te` therefore allows `platform_app` (and
+   `system_app`, harmlessly, for other build flavors) to search the LED class
+   dirs, read the symlinks, and read/write `brightness`.
+
+2. **MLS.** App domains get `levelFrom=user` in `seapp_contexts`, so
+   `platform_app` runs at `s0:c512,c768`, while `sysfs_leds` nodes are plain
+   `s0`. `system/sepolicy/private/mls` only permits a file write when the
+   target is `app_data_file_type`/`appdomain_tmpfs`, the two levels are equal,
+   the source is `mlstrustedsubject`, or the target is `mlstrustedobject` —
+   none of which held. The fix is one line:
+
+   ```
+   typeattribute sysfs_leds mlstrustedobject;
+   ```
+
+   the same treatment AOSP already gives `sysfs_bluetooth_writable` and
+   `sysfs_nfc_power_writable`. (`/sys/class/backlight/*` is plain `sysfs`,
+   which is already `mlstrustedobject`, so the fallback path only needs the
+   TE grant.)
+
+The rules land in `system_ext_sepolicy.cil` via
+`SYSTEM_EXT_PRIVATE_SEPOLICY_DIRS` (set in `common.mk`); neverallow
+assertions are off in this GSI (`device/phh/treble/base.mk` sets
+`SELINUX_IGNORE_NEVERALLOWS := true`), so the attribute change builds.
 
 ## If auto-discovery picks the wrong node
 
