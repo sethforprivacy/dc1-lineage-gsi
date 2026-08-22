@@ -1,24 +1,18 @@
 #
 # SELinux rules for the DC-1 amber frontlight.
 #
-# The amber LED kernel node lives under /sys/class/leds (SELinux type
-# sysfs_leds), gated by SELinux. AmberControl is a platform-signed
-# privileged app running in the system_app domain; these rules let it
-# discover (enumerate) and drive (write) the node under enforcing policy.
+# Ground truth (2026-08-22, live device): AmberControl runs in the
+# `platform_app` domain (AOSP seapp_contexts maps privileged platform-signed
+# apps to platform_app, NOT system_app). Grant exactly what the app needs:
+#   - dir: traverse/read the LED class dirs for node discovery
+#   - file: read max_brightness, write brightness
 #
-# NOTE on syntax: standard policy language requires source:class (colon),
-# e.g. `sysfs_leds:dir`. (Magisk's .rule files use space-separated classes,
-# but that conversion does NOT apply to .te files compiled by checkpolicy.)
-#
-# This is a deliberate, narrow widening of system_app: the same
-# system_app+shell rules shipped in the pre-GSI Magisk module and are
-# proven on this exact device shape with enforcing SELinux enabled.
 
-allow system_app sysfs_leds:dir { search read open getattr };
-allow system_app sysfs_leds:file { getattr open read write };
+allow platform_app sysfs_leds:dir { search read open getattr };
+allow platform_app sysfs_leds:file { getattr open read write };
 
 # fallback: some panels expose the channel under /sys/class/backlight typed
-# sysfs (kernel sysfs); allow read/write there too so discovery/write are not
-# silently blocked if the amber node lands in a non-sysfs_leds type.
-allow system_app sysfs:file { getattr open read write };
-allow system_app sysfs:dir { search read open getattr };
+# plain sysfs; cover that too so discovery/write are not blocked if the amber
+# node lands outside the sysfs_leds label.
+allow platform_app sysfs:file { getattr open read write };
+allow platform_app sysfs:dir { search read open getattr };
