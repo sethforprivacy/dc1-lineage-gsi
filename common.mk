@@ -52,10 +52,9 @@ PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
 PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
     ro.config.size_override=1184,1584
 
-# --- Config overlays + package removals (see rro/*/Android.bp) --------------
+# --- Config overlay + package removals (see rro/DC1Overlay/Android.bp) ------
 PRODUCT_PACKAGES += \
-    DC1Overlay \
-    DC1SettingsProviderOverlay
+    DC1Overlay
 
 # --- Mask camera + light-sensor features declared by the stock /vendor ------
 PRODUCT_COPY_FILES += \

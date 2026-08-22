@@ -32,7 +32,7 @@ Full rationale: [`docs/rom-choice.md`](docs/rom-choice.md).
 | Amber frontlight | rootless system app: Quick-Settings tile + slider, mirrors `screen_brightness_amber_rate` → kernel LED (auto-discovers the node; override via `ro.dc1.amber.node`) | `AmberControl/` |
 | SELinux | lets the amber app (`platform_app` domain) read/write `sysfs_leds` under enforcing policy — TE allow plus `mlstrustedobject` on `sysfs_leds`, see [`docs/amber.md`](docs/amber.md) | `sepolicy/dc1amber.te` |
 | Priv-app permission | allows `WRITE_SETTINGS` to the amber app | `privapp-permissions-dc1.xml` |
-| Display/feature config | monochrome-panel + no-camera/no-light-sensor overlays, forced grayscale + 1184x1584 size props, drops camera apps & setup wizard | `rro/`, `dc1-excluded-hardware.xml`, `common.mk` |
+| Display/feature config | monochrome-panel + no-camera/no-light-sensor/no-telephony feature masks, forced grayscale + 1184x1584 size props, drops camera apps; setup wizard kept, its SIM step self-skips | `rro/`, `dc1-excluded-hardware.xml`, `common.mk` |
 | Repo manifest | adds `vendor/dc1` (this repo) to the build tree | `local_manifests/dc1.xml` |
 
 Nearly everything upstream (LineageOS, TrebleDroid patches,

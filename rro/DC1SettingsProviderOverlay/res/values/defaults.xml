@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Seed the device as provisioned on first boot: LineageSetupWizard is
-     removed from the image (DC1Overlay overrides), so nothing else would
-     ever set these. -->
-<resources>
-    <bool name="def_device_provisioned">true</bool>
-    <bool name="def_user_setup_complete">true</bool>
-</resources>

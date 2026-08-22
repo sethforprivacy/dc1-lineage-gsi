@@ -3,9 +3,8 @@
 // module-overrides out of product-installed-modules):
 //  - Aperture, ApertureLensLauncher (GCam-package-name stub),
 //    ApertureFrameworksBaseOverlay, CameraExtensionsProxy: no camera exists
-//  - LineageSetupWizard: no first-boot wizard / SIM nag (provisioning is
-//    seeded by DC1SettingsProviderOverlay; AOSP Provision remains as the
-//    silent fallback provisioner)
+// The setup wizard is kept; its SIM screen self-skips because
+// dc1-excluded-hardware.xml masks the telephony features.
 runtime_resource_overlay {
     name: "DC1Overlay",
     manifest: "AndroidManifest.xml",
@@ -16,6 +15,5 @@ runtime_resource_overlay {
         "ApertureLensLauncher",
         "ApertureFrameworksBaseOverlay",
         "CameraExtensionsProxy",
-        "LineageSetupWizard",
     ],
 }

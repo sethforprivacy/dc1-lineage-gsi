@@ -28,10 +28,11 @@ upstream".
 
 Our delta remains: `common.mk` (amber app + sepolicy + props + overlays),
 `AmberControl/`, `sepolicy/`, `privapp-permissions-dc1.xml`,
-`dc1-excluded-hardware.xml` (masks the camera/light-sensor features the stock
-`/vendor` declares), `rro/` (framework + settings-provider RROs, which also
-carry the `overrides:` list that drops camera apps and LineageSetupWizard from
-the image), `local_manifests/dc1.xml`, plus any `patches/*.patch` applied to
+`dc1-excluded-hardware.xml` (masks the camera/light-sensor/telephony features
+the stock `/vendor` wrongly declares — the telephony mask is also what makes
+the setup wizard's SIM screen self-skip), `rro/` (framework config RRO, which
+also carries the `overrides:` list that drops the camera apps from the
+image), `local_manifests/dc1.xml`, plus any `patches/*.patch` applied to
 upstream trees by `patches/apply.sh`.
 
 ## Prerequisites

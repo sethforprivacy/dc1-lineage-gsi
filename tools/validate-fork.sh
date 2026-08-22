@@ -58,9 +58,6 @@ for ref in \
   rro/DC1Overlay/Android.bp \
   rro/DC1Overlay/AndroidManifest.xml \
   rro/DC1Overlay/res/values/config.xml \
-  rro/DC1SettingsProviderOverlay/Android.bp \
-  rro/DC1SettingsProviderOverlay/AndroidManifest.xml \
-  rro/DC1SettingsProviderOverlay/res/values/defaults.xml \
   local_manifests/dc1.xml; do
   [ -e "$ROOT/$ref" ] || fail "common.mk references missing file: $ref"
   ok "$ref"
@@ -73,8 +70,6 @@ if command -v xmllint >/dev/null 2>&1; then
     dc1-excluded-hardware.xml \
     rro/DC1Overlay/AndroidManifest.xml \
     rro/DC1Overlay/res/values/config.xml \
-    rro/DC1SettingsProviderOverlay/AndroidManifest.xml \
-    rro/DC1SettingsProviderOverlay/res/values/defaults.xml \
     local_manifests/dc1.xml; do
     xmllint --noout "$ROOT/$x" || fail "malformed XML: $x"
     ok "well-formed: $x"

@@ -18,4 +18,16 @@
     <unavailable-feature name="android.hardware.camera.front" />
     <unavailable-feature name="android.hardware.camera.level.full" />
     <unavailable-feature name="android.hardware.sensor.light" />
+    <!-- No modem / SIM slot either. Among other things this makes the
+         Lineage SetupWizard's SIM screen self-skip (SimMissingActivity
+         checks hasSystemFeature(FEATURE_TELEPHONY)) while the rest of the
+         first-boot wizard still runs. -->
+    <unavailable-feature name="android.hardware.telephony" />
+    <unavailable-feature name="android.hardware.telephony.calling" />
+    <unavailable-feature name="android.hardware.telephony.data" />
+    <unavailable-feature name="android.hardware.telephony.gsm" />
+    <unavailable-feature name="android.hardware.telephony.ims" />
+    <unavailable-feature name="android.hardware.telephony.messaging" />
+    <unavailable-feature name="android.hardware.telephony.radio.access" />
+    <unavailable-feature name="android.hardware.telephony.subscription" />
 </permissions>
