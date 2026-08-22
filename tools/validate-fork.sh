@@ -54,6 +54,8 @@ for ref in \
   AmberControl/Android.bp \
   privapp-permissions-dc1.xml \
   sepolicy/dc1amber.te \
+  sepolicy/dc1wlan.te \
+  dc1-wlan-log.rc \
   dc1-excluded-hardware.xml \
   rro/DC1Overlay/Android.bp \
   rro/DC1Overlay/AndroidManifest.xml \
@@ -124,12 +126,24 @@ done
   || fail "lineage-GSI layer no longer creates lineage_arm64_bvN4.mk in device/phh/treble"
 ok "lineage-GSI patch layer reproduced (lineage_arm64_bvN4 product present)"
 
+# vendor/lineage: shallow clone for patches targeting it
+VLINEAGE="$WORK/vendor_lineage"
+if compgen -G "$ROOT/patches/vendor_lineage__*.patch" >/dev/null; then
+  if [ ! -d "$VLINEAGE/.git" ]; then
+    git clone --quiet --depth 1 -b lineage-23.2 \
+      https://github.com/LineageOS/android_vendor_lineage "$VLINEAGE"
+  fi
+  ( cd "$VLINEAGE" && git fetch --quiet --depth 1 origin lineage-23.2 \
+      && git reset --quiet --hard FETCH_HEAD )
+fi
+
 applied=0
 for p in "$ROOT"/patches/*.patch; do
   [ -e "$p" ] || continue
   proj="$(basename "$p")"; proj="${proj%%__*}"
   case "$proj" in
     device_phh_treble) clone="$PHH_LOS" ;;
+    vendor_lineage) clone="$VLINEAGE" ;;
     *) fail "patch $p names unknown project $proj (see patches/README.md)" ;;
   esac
   git -C "$clone" apply --check "$p" || fail "patch $p no longer applies to $proj HEAD"

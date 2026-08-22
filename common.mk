@@ -60,4 +60,13 @@ PRODUCT_PACKAGES += \
 PRODUCT_COPY_FILES += \
     vendor/dc1/dc1-excluded-hardware.xml:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/permissions/dc1-excluded-hardware.xml
 
+# --- Diagnosability: stock 256KiB log buffers hold <12 min on this device ---
+PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
+    persist.logd.size=4M
+
+# --- Mute the MTK wlan driver INFO log flood (~1000 lines/min idle) ---------
+# init writes /proc/net/wlan/dbgLevel at boot; sepolicy/dc1wlan.te grants it.
+PRODUCT_COPY_FILES += \
+    vendor/dc1/dc1-wlan-log.rc:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/init/dc1-wlan-log.rc
+
 # vim: ft=make

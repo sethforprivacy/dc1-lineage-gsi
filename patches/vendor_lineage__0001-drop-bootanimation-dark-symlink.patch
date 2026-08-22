@@ -1,0 +1,14 @@
+diff --git a/config/common.mk b/config/common.mk
+index 3b68625f..35459b75 100644
+--- a/config/common.mk
++++ b/config/common.mk
+@@ -137,8 +137,7 @@ endif
+ TARGET_SCREEN_WIDTH ?= 1080
+ TARGET_SCREEN_HEIGHT ?= 1920
+ PRODUCT_PACKAGES += \
+-    bootanimation.zip \
+-    bootanimation-dark.zip
++    bootanimation.zip
+
+ # Lineage interfaces
+ PRODUCT_PACKAGES += \

@@ -1,0 +1,7 @@
+#
+# DC-1: init writes /proc/net/wlan/dbgLevel (labelled proc_net) at boot to
+# mute the MediaTek wlan driver's INFO log flood — see dc1-wlan-log.rc.
+# init is s0 and so is the node, so no MLS concern; core policy does not
+# grant init generic proc_net write on this tree.
+#
+allow init proc_net:file { open write getattr };
