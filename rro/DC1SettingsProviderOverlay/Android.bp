@@ -1,0 +1,10 @@
+// DC-1 settings-provider overlay: seeds first-boot defaults so no setup
+// wizard is required (precedent: device/generic/car ProvidersSettingsGsiOverlay,
+// device/generic/common/mgsi).
+runtime_resource_overlay {
+    name: "DC1SettingsProviderOverlay",
+    manifest: "AndroidManifest.xml",
+    resource_dirs: ["res"],
+    product_specific: true,
+    sdk_version: "current",
+}

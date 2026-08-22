@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The DC-1 has no camera and no ambient light sensor, but the stock /vendor
+  partition (kept under the GSI) declares them via generic MediaTek feature
+  XMLs. SystemConfig applies unavailable-feature entries last, after all
+  partitions' declarations, so these masks win regardless of source.
+-->
+<permissions>
+    <unavailable-feature name="android.hardware.camera" />
+    <unavailable-feature name="android.hardware.camera.any" />
+    <unavailable-feature name="android.hardware.camera.autofocus" />
+    <unavailable-feature name="android.hardware.camera.capability.manual_post_processing" />
+    <unavailable-feature name="android.hardware.camera.capability.manual_sensor" />
+    <unavailable-feature name="android.hardware.camera.capability.raw" />
+    <unavailable-feature name="android.hardware.camera.concurrent" />
+    <unavailable-feature name="android.hardware.camera.external" />
+    <unavailable-feature name="android.hardware.camera.flash" />
+    <unavailable-feature name="android.hardware.camera.front" />
+    <unavailable-feature name="android.hardware.camera.level.full" />
+    <unavailable-feature name="android.hardware.sensor.light" />
+</permissions>

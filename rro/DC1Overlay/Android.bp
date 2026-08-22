@@ -1,0 +1,21 @@
+// DC-1 framework config overlay + package removals.
+// overrides: removes modules from the installed set (main.mk filters
+// module-overrides out of product-installed-modules):
+//  - Aperture, ApertureLensLauncher (GCam-package-name stub),
+//    ApertureFrameworksBaseOverlay, CameraExtensionsProxy: no camera exists
+//  - LineageSetupWizard: no first-boot wizard / SIM nag (provisioning is
+//    seeded by DC1SettingsProviderOverlay; AOSP Provision remains as the
+//    silent fallback provisioner)
+runtime_resource_overlay {
+    name: "DC1Overlay",
+    manifest: "AndroidManifest.xml",
+    resource_dirs: ["res"],
+    product_specific: true,
+    overrides: [
+        "Aperture",
+        "ApertureLensLauncher",
+        "ApertureFrameworksBaseOverlay",
+        "CameraExtensionsProxy",
+        "LineageSetupWizard",
+    ],
+}

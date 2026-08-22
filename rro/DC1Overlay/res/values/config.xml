@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- No ambient light sensor: hide the auto-brightness toggle (pin the
+         AOSP default; upstream overlays must not flip it). -->
+    <bool name="config_automatic_brightness_available">false</bool>
+
+    <!-- Monochrome panel: disabling accelerated color transforms removes
+         Night Light, Reduce Bright Colors, and LiveDisplay color features
+         (incl. Reading Mode) in one flip. Grayscale itself is forced
+         unconditionally via persist.sys.sf.color_saturation=0.0. -->
+    <bool name="config_setColorTransformAccelerated">false</bool>
+
+    <!-- Empty = no "Colors" screen in Display settings (beats phh's
+         priority-1 overlay that declares modes 0-3). -->
+    <integer-array name="config_availableColorModes" />
+
+    <!-- Already the AOSP default; pinned for the same reason. -->
+    <bool name="config_displayWhiteBalanceAvailable">false</bool>
+</resources>
