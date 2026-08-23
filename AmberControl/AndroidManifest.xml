@@ -1,16 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.dc1.amber"
-    android:versionCode="3"
-    android:versionName="2.1">
+    android:versionCode="4"
+    android:versionName="2.2">
 
     <uses-permission android:name="android.permission.WRITE_SETTINGS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
+    <!-- persistent: AmberService's two ContentObservers (warmth mirror +
+         white-rebase) are the whole point of the app; a plain background
+         service gets stopped ~60s after leaving foreground (verified live),
+         killing them. Persistent system processes are exempt. -->
     <application
         android:label="@string/app_name"
         android:icon="@drawable/ic_amber"
         android:theme="@style/AmberTheme"
+        android:persistent="true"
         android:allowBackup="false">
 
         <!-- Slider UI (also a launcher entry so it's findable) -->
