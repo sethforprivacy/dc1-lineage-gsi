@@ -67,8 +67,8 @@ PaperMode-app/             No-root Android app (grayscale/refresh/warm overlay)
 - [x] Delta validated against current upstream HEAD (fragment contract + patches; `tools/validate-fork.sh` passes, also in CI)
 - [x] AmberControl compiles and packages to a signed APK (`tools/build-app-local.sh`, verified)
 - [x] CI pipeline run green on GitHub Actions (detect → validate → notify)
-- [ ] First full ROM build + on-device validation (needs a ~150 GB Linux build box; see `docs/build.md`)
-- [ ] Amber node auto-discovery validated on-device; `ro.dc1.amber.node` locked in if needed (see `docs/root-walkthrough.md`)
+- [x] First full ROM build + on-device validation (booting, both variants; see Releases)
+- [x] Amber node auto-discovery validated on-device (`/sys/class/leds/lcd-backlight-amber`), end-to-end crossfade verified under enforcing SELinux
 
 Tracking issue: https://github.com/sethforprivacy/dc1-lineage-gsi/issues/1 (updated automatically by CI)
 
@@ -79,6 +79,23 @@ See [`docs/build.md`](docs/build.md) (build from source) and
 (`.github/workflows/upstream.yml`) runs daily: detects upstream releases,
 validates the delta, and files an Issue titled `Upstream update detected` with
 the ready-to-build command when a re-build is warranted.
+
+## AI disclosure
+
+**The DC-1 delta in this repository is written by AI** — the AmberControl app,
+the sepolicy, overlays, init scripts, patches, tooling, and docs — produced
+under human direction and review, and validated end-to-end on real DC-1
+hardware (every shipped fix was verified live before release, several of them
+after AI-authored diagnosis of on-device failures).
+
+This applies **only to this repo's own files**, not to the ROM as a whole: the
+overwhelming majority of what you flash is upstream LineageOS, AOSP, and
+TrebleDroid code, maintained by their own human communities and untouched here
+beyond the small documented patches in `patches/`.
+
+None of this substitutes for your own judgement. It's an early release for a
+niche device — read the release notes, verify the checksums, and keep a copy
+of stock on hand.
 
 ## License
 
