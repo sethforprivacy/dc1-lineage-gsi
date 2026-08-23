@@ -35,13 +35,12 @@ PRODUCT_COPY_FILES += \
 # appends to the system_ext sepolicy dirs device/phh/treble already contributes
 SYSTEM_EXT_PRIVATE_SEPOLICY_DIRS += vendor/dc1/sepolicy
 
-# --- Monochrome panel: force global grayscale in SurfaceFlinger -------------
-# Read in SurfaceFlinger::readPersistentProperties() after boot; applied as
-# the global composition color matrix (Rec.709 luma), independent of color
-# management. persist. default seeds /data on first boot; a user override of
-# the persist prop survives reflashes.
-PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
-    persist.sys.sf.color_saturation=0.0
+# --- Monochrome panel: NO forced SF grayscale matrix ------------------------
+# We shipped persist.sys.sf.color_saturation=0.0 briefly; verified on-device
+# that the resulting global color matrix forces CLIENT (GPU) composition of
+# every frame on this MTK HWC (usesDeviceComposition=false -> visible jank at
+# 120Hz, launcher p50 15ms). The panel is physically monochrome, so the
+# matrix only reweighted the gray mapping — not worth losing hw overlays.
 
 # --- Panel geometry: bezel compensation via waterfall insets ----------------
 # The outer 8px ring of the 1200x1600 panel sits under the bezel. Stock
@@ -74,5 +73,9 @@ PRODUCT_COPY_FILES += \
 # --- Amber node DAC fix + out-of-box frontlight (see dc1-amber.rc) ----------
 PRODUCT_COPY_FILES += \
     vendor/dc1/dc1-amber.rc:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/init/dc1-amber.rc
+
+# --- Migrate stale persisted props from earlier builds (see the .rc) --------
+PRODUCT_COPY_FILES += \
+    vendor/dc1/dc1-prop-migrate.rc:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/init/dc1-prop-migrate.rc
 
 # vim: ft=make

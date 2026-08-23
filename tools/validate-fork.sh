@@ -57,6 +57,7 @@ for ref in \
   sepolicy/dc1wlan.te \
   dc1-wlan-log.rc \
   dc1-amber.rc \
+  dc1-prop-migrate.rc \
   dc1-excluded-hardware.xml \
   rro/DC1Overlay/Android.bp \
   rro/DC1Overlay/AndroidManifest.xml \

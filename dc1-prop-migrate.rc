@@ -1,0 +1,11 @@
+# DC-1 stale-property migration.
+#
+# Early builds seeded persist.sys.sf.color_saturation=0.0, which forces
+# CLIENT (GPU) composition of every frame on this MTK HWC (no hardware
+# overlays -> 120Hz jank). The persist value lives on /data and survives
+# system reflashes, so rewrite exactly the stale value to the SF default.
+# A user-chosen non-0.0 value is never touched. Fires at persist-prop load
+# (post-fs-data), long before SurfaceFlinger reads it at boot-finished.
+
+on property:persist.sys.sf.color_saturation=0.0
+    setprop persist.sys.sf.color_saturation 1.0
