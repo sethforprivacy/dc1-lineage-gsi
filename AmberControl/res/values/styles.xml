@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Light-only theme: the panel is reflective, there is no emissive backlight to
+  save, and white is the paper. Framework Material is the base; everything
+  chromatic is redirected to ink so nothing renders as a muddy mid-gray.
+-->
+<resources>
+    <style name="AmberTheme" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/paper</item>
+        <item name="android:colorBackground">@color/paper</item>
+        <item name="android:colorAccent">@color/ink</item>
+        <item name="android:colorPrimary">@color/paper</item>
+        <item name="android:colorControlNormal">@color/ink</item>
+        <item name="android:colorControlActivated">@color/ink</item>
+        <item name="android:colorControlHighlight">#22000000</item>
+        <item name="android:textColorPrimary">@color/ink</item>
+        <item name="android:textColorSecondary">@color/ink_muted</item>
+        <item name="android:statusBarColor">@color/paper</item>
+        <item name="android:navigationBarColor">@color/paper</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:alertDialogTheme">@style/AmberDialog</item>
+    </style>
+
+    <!-- Preset-removal confirm. Framework alert, ink buttons (the default
+         accent would render as a washed-out gray on this panel). -->
+    <style name="AmberDialog" parent="@android:style/Theme.Material.Light.Dialog.Alert">
+        <item name="android:colorAccent">@color/ink</item>
+        <item name="android:colorControlActivated">@color/ink</item>
+        <item name="android:textColorPrimary">@color/ink</item>
+    </style>
+</resources>

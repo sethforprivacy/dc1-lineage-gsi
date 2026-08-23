@@ -2,10 +2,33 @@
 <resources>
     <string name="app_name">Amber</string>
     <string name="tile_label">Amber</string>
-    <string name="slider_title">Amber frontlight</string>
-    <string name="slider_off">Off</string>
-    <string name="slider_full">Full (255)</string>
+
+    <!-- Main surface -->
+    <string name="screen_title">Amber frontlight</string>
+    <string name="readout_caption">Warmth</string>
+    <string name="readout_percent">%1$d%%</string>
+    <string name="slider_desc">Frontlight warmth, cool to warm</string>
+    <string name="label_cool">Cool</string>
+    <string name="label_warm">Warm</string>
+
+    <!-- Presets -->
+    <string name="presets_header">Presets</string>
+    <string name="preset_add">+</string>
+    <string name="preset_add_desc">Save the current level as a preset</string>
+    <string name="preset_percent">%1$d%%</string>
+    <string name="preset_off">Off</string>
+    <string name="preset_full">Full</string>
+    <string name="preset_saved">Saved %1$s</string>
+    <string name="preset_exists">%1$s is already saved</string>
+    <string name="preset_delete_title">Remove %1$s?</string>
+    <string name="preset_delete_confirm">Remove</string>
+    <string name="preset_delete_cancel">Cancel</string>
+    <string name="preset_removed">Removed %1$s</string>
+
+    <!-- Diagnostics footer -->
     <string name="status_no_node">Amber LED node not found yet — will keep looking.</string>
     <string name="status_node">Driving %1$s (max %2$d)</string>
-    <string name="toast_set">Amber set to %1$d</string>
+
+    <!-- Quick Settings tile -->
+    <string name="tile_off">Off</string>
 </resources>

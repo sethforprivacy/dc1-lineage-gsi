@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Thin, flat track: light gray rail, solid ink fill. No gradient, no shadow. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@android:id/background">
+        <shape android:shape="rectangle">
+            <size android:height="6dp" />
+            <corners android:radius="3dp" />
+            <solid android:color="@color/track_idle" />
+        </shape>
+    </item>
+    <item android:id="@android:id/secondaryProgress">
+        <shape android:shape="rectangle">
+            <size android:height="6dp" />
+            <corners android:radius="3dp" />
+            <solid android:color="@android:color/transparent" />
+        </shape>
+    </item>
+    <item android:id="@android:id/progress">
+        <clip>
+            <shape android:shape="rectangle">
+                <size android:height="6dp" />
+                <corners android:radius="3dp" />
+                <solid android:color="@color/ink" />
+            </shape>
+        </clip>
+    </item>
+</layer-list>

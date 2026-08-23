@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Active preset chip (its value equals the current level): inverted. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <corners android:radius="28dp" />
+    <solid android:color="@color/ink" />
+    <stroke android:width="2dp" android:color="@color/ink" />
+</shape>

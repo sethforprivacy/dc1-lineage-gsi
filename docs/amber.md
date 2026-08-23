@@ -29,7 +29,7 @@ the `AmberControl` app once — the value persists in the setting.
 ┌─────────────────────────── platform_app domain (rootless) ──────────────────────────┐
 │ AmberControl (platform-priv-app, system_ext/priv-app)                               │
 │  • QS tile "Amber"             – toggle on (default value) / off                    │
-│  • Settings activity+silder    – 0..1023                                │
+│  • Cool↔warm slider + presets  – 0..1023, saved in-app                  │
 │  • AmberService                – SettingsObserver on screen_brightness_amber_rate,  │
 │                                   writes scaled value to the amber LED node         │
 │  • Node resolution, in order:                                                       │

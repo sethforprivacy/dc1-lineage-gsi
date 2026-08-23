@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  One surface, top to bottom: title / hairline / big warmth readout /
+  cool-warm slider / presets / diagnostics footer. Nothing scrolls
+  vertically; everything is ink on paper with whitespace doing the work.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/paper"
+    android:paddingStart="64dp"
+    android:paddingEnd="64dp"
+    android:paddingTop="56dp"
+    android:paddingBottom="40dp">
+
+    <!-- ── Header ─────────────────────────────────────────────────── -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/screen_title"
+        android:textColor="@color/ink"
+        android:textSize="26sp"
+        android:fontFamily="sans-serif-medium"
+        android:letterSpacing="0.01" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginTop="20dp"
+        android:background="@color/rule" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="2" />
+
+    <!-- ── Readout ────────────────────────────────────────────────── -->
+    <TextView
+        android:id="@+id/readout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_horizontal"
+        android:textColor="@color/ink"
+        android:textSize="96sp"
+        android:fontFamily="sans-serif-light"
+        android:includeFontPadding="false" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:gravity="center_horizontal"
+        android:text="@string/readout_caption"
+        android:textAllCaps="true"
+        android:textColor="@color/ink_muted"
+        android:textSize="13sp"
+        android:letterSpacing="0.22" />
+
+    <!-- ── Slider ─────────────────────────────────────────────────── -->
+    <SeekBar
+        android:id="@+id/slider"
+        android:layout_width="match_parent"
+        android:layout_height="72dp"
+        android:layout_marginTop="44dp"
+        android:contentDescription="@string/slider_desc"
+        android:progressDrawable="@drawable/slider_track"
+        android:thumb="@drawable/slider_thumb"
+        android:thumbOffset="24dp"
+        android:paddingStart="24dp"
+        android:paddingEnd="24dp"
+        android:minHeight="6dp"
+        android:maxHeight="6dp"
+        android:splitTrack="false" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <ImageView
+            android:layout_width="22dp"
+            android:layout_height="22dp"
+            android:src="@drawable/ic_cool"
+            android:contentDescription="@null" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:text="@string/label_cool"
+            android:textColor="@color/ink_muted"
+            android:textSize="16sp" />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="10dp"
+            android:text="@string/label_warm"
+            android:textColor="@color/ink_muted"
+            android:textSize="16sp" />
+
+        <ImageView
+            android:layout_width="22dp"
+            android:layout_height="22dp"
+            android:src="@drawable/ic_warm"
+            android:contentDescription="@null" />
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="2" />
+
+    <!-- ── Presets ────────────────────────────────────────────────── -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/rule" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="22dp"
+        android:text="@string/presets_header"
+        android:textAllCaps="true"
+        android:textColor="@color/ink_muted"
+        android:textSize="13sp"
+        android:letterSpacing="0.22" />
+
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="18dp"
+        android:scrollbars="none"
+        android:clipToPadding="false"
+        android:paddingBottom="4dp">
+
+        <LinearLayout
+            android:id="@+id/preset_row"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal" />
+    </HorizontalScrollView>
+
+    <!-- ── Footer ─────────────────────────────────────────────────── -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="3" />
+
+    <TextView
+        android:id="@+id/status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="@color/ink_muted"
+        android:textSize="12sp" />
+</LinearLayout>
