@@ -16,4 +16,13 @@
 
     <!-- Already the AOSP default; pinned for the same reason. -->
     <bool name="config_displayWhiteBalanceAvailable">false</bool>
+
+    <!-- Bezel compensation: the outer 8px ring of the panel sits under the
+         bezel. Waterfall insets pull the status bar, navigation and app
+         safe areas inside the visible area (display runs native 1200x1600,
+         no forced-size scaling). -->
+    <dimen name="waterfall_display_left_edge_size">8px</dimen>
+    <dimen name="waterfall_display_top_edge_size">8px</dimen>
+    <dimen name="waterfall_display_right_edge_size">8px</dimen>
+    <dimen name="waterfall_display_bottom_edge_size">8px</dimen>
 </resources>

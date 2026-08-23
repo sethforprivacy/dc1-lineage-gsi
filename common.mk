@@ -43,14 +43,14 @@ SYSTEM_EXT_PRIVATE_SEPOLICY_DIRS += vendor/dc1/sepolicy
 PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
     persist.sys.sf.color_saturation=0.0
 
-# --- Panel geometry: stock DC-1 ships a 1184x1584 forced display size -------
-# (16px bezel ring sits under glass). ro.config.size_override is the WMS
-# fallback used when Settings.Global display_size_forced is unset, so it
-# applies from the first displayReady() with no on-boot resize flash, and a
-# later `wm size` still wins. Physical density (200) is correct as reported
-# by vendor, so no density override.
-PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
-    ro.config.size_override=1184,1584
+# --- Panel geometry: bezel compensation via waterfall insets ----------------
+# The outer 8px ring of the 1200x1600 panel sits under the bezel. Stock
+# "compensated" with display_size_forced=1184x1584, but WM aspect-fits the
+# forced size to the panel (verified: physicalFrame (2,0)-(1197,1600)), so
+# top/bottom stayed flush under the bezel and everything got a blurry 1.01x
+# scale. Instead run native 1:1 and declare 8px waterfall display insets
+# (rro/DC1Overlay), which pull the status bar, nav and app safe areas off
+# the covered ring — the mechanism curved-edge phones use.
 
 # --- Config overlay + package removals (see rro/DC1Overlay/Android.bp) ------
 PRODUCT_PACKAGES += \
@@ -61,12 +61,18 @@ PRODUCT_COPY_FILES += \
     vendor/dc1/dc1-excluded-hardware.xml:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/permissions/dc1-excluded-hardware.xml
 
 # --- Diagnosability: stock 256KiB log buffers hold <12 min on this device ---
+# ro.logd.size too: logd sizes its buffers before persist props load.
 PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
-    persist.logd.size=4M
+    persist.logd.size=4M \
+    ro.logd.size=4M
 
 # --- Mute the MTK wlan driver INFO log flood (~1000 lines/min idle) ---------
 # init writes /proc/net/wlan/dbgLevel at boot; sepolicy/dc1wlan.te grants it.
 PRODUCT_COPY_FILES += \
     vendor/dc1/dc1-wlan-log.rc:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/init/dc1-wlan-log.rc
+
+# --- Amber node DAC fix + out-of-box frontlight (see dc1-amber.rc) ----------
+PRODUCT_COPY_FILES += \
+    vendor/dc1/dc1-amber.rc:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/init/dc1-amber.rc
 
 # vim: ft=make

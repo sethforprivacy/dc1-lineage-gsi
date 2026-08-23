@@ -24,6 +24,10 @@
 
 typeattribute sysfs_leds mlstrustedobject;
 
+# Gate 3 is DAC: the node ships root:root 0644, so dc1-amber.rc has init
+# chmod it; core policy gives init sysfs_leds write but not setattr.
+allow init sysfs_leds:file setattr;
+
 allow { platform_app system_app } sysfs_leds:dir { search open read getattr };
 allow { platform_app system_app } sysfs_leds:lnk_file { read getattr };
 allow { platform_app system_app } sysfs_leds:file { getattr open read write append lock map };

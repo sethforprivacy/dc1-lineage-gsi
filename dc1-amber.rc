@@ -1,0 +1,19 @@
+# DC-1 amber frontlight node setup.
+#
+# Gate 3 of 3 for rootless amber control: the kernel node is root:root 0644,
+# so even with the TE allow + mlstrustedobject (sepolicy/dc1amber.te) the
+# app's write fails EACCES on plain DAC. init opens the mode; SELinux still
+# restricts writers to the domains policy allows (hal_light, init,
+# platform_app, system_app).
+#
+# The early write also lights the frontlight out of the box: on a fresh
+# /data the AmberControl package can still be in the first-boot "stopped"
+# state, which excludes it from BOOT_COMPLETED, so init seeds full amber
+# (Daylight UI scale: 255 = max) and the app takes over once launched.
+
+on post-fs-data
+    chmod 0666 /sys/class/leds/lcd-backlight-amber/brightness
+    write /sys/class/leds/lcd-backlight-amber/brightness 255
+
+on property:sys.boot_completed=1
+    chmod 0666 /sys/class/leds/lcd-backlight-amber/brightness
