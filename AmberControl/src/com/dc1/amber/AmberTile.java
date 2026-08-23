@@ -9,6 +9,11 @@ import android.service.quicksettings.TileService;
  * the configured default (ro.dc1.amber.default, full by default); long-press
  * opens the slider activity (lockscreen-aware). The subtitle shows the same
  * 0-100% warmth the app's readout shows.
+ *
+ * The tile only writes the warmth setting and calls the mirror; the cool↔warm
+ * crossfade (amber up / white down, and restoring white on the way back to 0)
+ * lives in {@link AmberService#mirrorSetting}, so toggling from here behaves
+ * exactly like dragging the slider.
  */
 public final class AmberTile extends TileService {
 
