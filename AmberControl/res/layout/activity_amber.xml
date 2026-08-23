@@ -141,13 +141,19 @@
         android:layout_marginTop="18dp"
         android:scrollbars="none"
         android:clipToPadding="false"
+        android:paddingTop="4dp"
         android:paddingBottom="4dp">
 
+        <!-- baselineAligned MUST stay false: these pills are fixed-height, and
+             the "+" uses a larger text size, so baseline alignment would push
+             the smaller-text pills down and clip their bottom stroke. -->
         <LinearLayout
             android:id="@+id/preset_row"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:orientation="horizontal" />
+            android:orientation="horizontal"
+            android:baselineAligned="false"
+            android:gravity="center_vertical" />
     </HorizontalScrollView>
 
     <!-- ── Footer ─────────────────────────────────────────────────── -->
