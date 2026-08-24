@@ -189,13 +189,11 @@ gate is still shut. `dc1-amber.rc` chmods `registers`, `i2c_brightness`,
 `can_not_see_backlight_brightness_threshold` to 0644 on both chips at
 `boot_completed`, so plain `cat` reads them live — no snapshotting, no props.
 
-> **Dead trigger, kept for the record.** `dc1-amber.rc` also carries an
-> `on property:debug.dc1.regs=*` block that tries to mirror the same attrs into
-> `debug.dc1.*` props with `read <file> <prop>`. **`read` is not an Android init
-> command** (the command list has `write`, `copy`, `copy_per_line`, `chmod`,
-> `setprop`, `readahead` — no `read`), so init rejects those eight lines at
-> parse time (`invalid command 'read'`) and the props are never set. Use the
-> `cat` reads above; the block can be deleted once that is confirmed on-device.
+(If SELinux still blocks the shell on those attrs, the kernel log is the
+fallback and needs no permissions at all: `adb logcat -b kernel | grep -E
+'\[Light\] Set|rt4539'` shows every node write with its sysfs value, every
+chip enable/disable with its reason, and every i2c brightness transition —
+verified live on v7.)
 
 ## If auto-discovery picks the wrong node
 
