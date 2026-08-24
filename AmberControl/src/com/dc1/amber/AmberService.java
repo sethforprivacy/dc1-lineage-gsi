@@ -164,6 +164,7 @@ public final class AmberService extends Service {
     private ContentObserver mWhiteObserver;
     private ContentObserver mConfigObserver;
     private BroadcastReceiver mScreenOnReceiver;
+    private BroadcastReceiver mScreenOffReceiver;
     private final Handler mHandler = new Handler();
     /** The pending post-ramp re-mirror, if any. */
     private final Runnable mRemirror = new Runnable() {
@@ -180,10 +181,23 @@ public final class AmberService extends Service {
      * split on framework brightness applies that change no setting and fire
      * no broadcast), re-assert the mix. Self-heals every clobber path in one
      * place, including the ones nobody has observed yet.
+     *
+     * Suspended while the display is off: the screen-off sequence writes 0 to
+     * both nodes (that is the framework turning the frontlight OFF, not drift),
+     * and re-asserting the mix then would relight the strings with the panel
+     * asleep — the frontlight glowing in a dark room (owner-observed on v9.2).
+     * ACTION_SCREEN_ON re-asserts the mix when the display returns.
      */
     private final Runnable mWatchdog = new Runnable() {
         @Override
         public void run() {
+            if (!mDisplayOn) {
+                // Display off: skip the drift check entirely. Keep polling so
+                // we notice the display coming back via the flag (set by the
+                // SCREEN_ON/SCREEN_OFF receivers) even if a broadcast was missed.
+                mHandler.postDelayed(mWatchdog, WATCHDOG_MS);
+                return;
+            }
             if (nodesDrifted()) {
                 Log.i(TAG, "node drift detected (vendor HAL re-asserted); re-mirroring");
                 mirrorSetting();
@@ -191,6 +205,9 @@ public final class AmberService extends Service {
             mHandler.postDelayed(mWatchdog, WATCHDOG_MS);
         }
     };
+
+    /** Display interactive state, maintained by the screen receivers. */
+    private volatile boolean mDisplayOn = true;
 
     @Override
     public void onCreate() {
@@ -251,11 +268,28 @@ public final class AmberService extends Service {
             @Override
             public void onReceive(Context context, Intent intent) {
                 Log.i(TAG, "screen on; re-asserting mix");
+                mDisplayOn = true;
                 mirrorSetting();
                 scheduleRemirror();
             }
         };
         registerReceiver(mScreenOnReceiver, new IntentFilter(Intent.ACTION_SCREEN_ON));
+
+        // Display off: stand down. The framework's screen-off sequence drives
+        // both LED nodes to 0 (that is the frontlight turning off, not drift),
+        // so the watchdog must not "heal" it and relight the strings over a
+        mScreenOffReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                Log.i(TAG, "screen off; watchdog standing down");
+                mDisplayOn = false;
+                // A post-ramp re-mirror may still be pending from just before
+                // the display went down; it would relight the strings over the
+                // sleeping panel. Cancel it — SCREEN_ON re-asserts.
+                mHandler.removeCallbacks(mRemirror);
+            }
+        };
+        registerReceiver(mScreenOffReceiver, new IntentFilter(Intent.ACTION_SCREEN_OFF));
 
         // The watchdog is the safety net for every framework brightness
         // apply that fires no observable event (dim cycles, early-wake
@@ -279,6 +313,7 @@ public final class AmberService extends Service {
         mHandler.removeCallbacks(mRemirror);
         mHandler.removeCallbacks(mWatchdog);
         unregisterReceiver(mScreenOnReceiver);
+        unregisterReceiver(mScreenOffReceiver);
         ContentResolver cr = getContentResolver();
         cr.unregisterContentObserver(mObserver);
         cr.unregisterContentObserver(mWhiteObserver);
