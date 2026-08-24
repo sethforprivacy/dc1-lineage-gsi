@@ -89,38 +89,3 @@ on property:sys.boot_completed=1
     chmod 0644 /sys/bus/i2c/devices/5-003c/hwcomposer_disabled_backlight_off_bypass
     chmod 0644 /sys/bus/i2c/devices/2-003c/can_not_see_backlight_brightness_threshold
     chmod 0644 /sys/bus/i2c/devices/5-003c/can_not_see_backlight_brightness_threshold
-
-
-# ── Chip-state readback: registers → debug props ──────────────────────────
-# NOTE: `read` is not an init command (verified against AOSP init's documented
-# command list); init will reject all eight lines below at parse time and the
-# debug.dc1.* props will never be set. Kept as the record of intent — the
-# chmod block in the boot_completed trigger above delivers the same readback
-# through `adb shell cat`. Delete this trigger once that is confirmed on the
-# device.
-#
-# The chip attrs are root-only (mode 0200/0600): the shell can neither read
-# nor write them, but init can do both. `read` copies the first PROP_VALUE_MAX
-# bytes of a file into a property, so this trigger turns `adb shell setprop
-# debug.dc1.regs <n>` (any new value; debug.* is shell-writable) into a live
-# view of both chips' driver state via `getprop`:
-#
-#   debug.dc1.regs.a / debug.dc1.regs.w   — `registers` dumps (2-003c / 5-003c)
-#   debug.dc1.bri.a  / debug.dc1.bri.w    — `i2c_brightness` (driver's value)
-#   debug.dc1.byp.a  / debug.dc1.byp.w    — hwcomposer_disabled_backlight_off_bypass
-#   debug.dc1.thr.a  / debug.dc1.thr.w    — can_not_see_backlight_brightness_threshold
-#
-# This makes the gate observable without eyes on the panel: if a brightness
-# write changes i2c_brightness/registers on one chip but not the other, the
-# gate (or the node mapping) is the difference. Reads have no driver side
-# effects (plain sysfs show handlers); a failed read just leaves the prop set
-# from the previous trigger fire.
-on property:debug.dc1.regs=*
-    read /sys/bus/i2c/devices/2-003c/registers debug.dc1.regs.a
-    read /sys/bus/i2c/devices/5-003c/registers debug.dc1.regs.w
-    read /sys/bus/i2c/devices/2-003c/i2c_brightness debug.dc1.bri.a
-    read /sys/bus/i2c/devices/5-003c/i2c_brightness debug.dc1.bri.w
-    read /sys/bus/i2c/devices/2-003c/hwcomposer_disabled_backlight_off_bypass debug.dc1.byp.a
-    read /sys/bus/i2c/devices/5-003c/hwcomposer_disabled_backlight_off_bypass debug.dc1.byp.w
-    read /sys/bus/i2c/devices/2-003c/can_not_see_backlight_brightness_threshold debug.dc1.thr.a
-    read /sys/bus/i2c/devices/5-003c/can_not_see_backlight_brightness_threshold debug.dc1.thr.w
