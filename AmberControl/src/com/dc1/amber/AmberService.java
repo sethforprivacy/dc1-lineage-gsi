@@ -29,12 +29,17 @@ import java.util.List;
  * it alone would only add light (brighter), not shift the colour temperature.
  * So warmth w = warmth_setting / SETTING_MAX drives both halves:
  *
- *   amber LED  = w * node_max                       (kernel LED node)
- *   white      = max(floor, round(base * (1 - w)))  (screen_brightness setting)
+ *   amber LED  = round((B / 255) * w * node_max)    (kernel LED node)
+ *   white      = max(floor, round(B * (1 - w)))     (screen_brightness setting)
  *
- * where {@code base} is the user's own white level, captured the moment warmth
- * leaves 0 and restored when it returns to 0. At w=1 white sits at the floor
- * and the panel is lit by amber alone — stock Daylight's candlelight look.
+ * where B is the lamp's total output: the user's own white level, captured the
+ * moment warmth leaves 0, restored when it returns to 0, and re-derived when
+ * they move the brightness slider mid-fade. Warmth is a mix <em>rate</em> (the
+ * stock key is screen_brightness_amber_<em>rate</em>), so it sets the hue while
+ * B sets how much light comes out — scaling amber by B is what keeps a dim warm
+ * setting dim instead of blasting the amber channel at full tilt. At w=1 white
+ * sits at the floor and the panel is lit by amber alone, at the chosen
+ * brightness — stock Daylight's candlelight look.
  *
  * The white side goes through the official brightness pipeline
  * ({@code Settings.System.screen_brightness}); there is no writable white
@@ -138,13 +143,19 @@ public final class AmberService extends Service {
      * Apply the warmth setting: amber LED up, white backlight down. Every
      * writer of the warmth setting (slider, QS tile, boot, future automation)
      * funnels through here, so the crossfade is never bypassed.
+     *
+     * Warmth is a mix <em>rate</em> (the stock key is literally
+     * screen_brightness_amber_<em>rate</em>), not an absolute amber level: the
+     * brightness base is the lamp's total output and warmth only decides how
+     * that output is split between the white and amber channels. So both sides
+     * are scaled by the base, and the hue depends on warmth alone.
      */
     static void mirrorSetting(Context context) {
-        int value = readWarmth(context);
+        int warmth = readWarmth(context);
+        int base = lampBase(context);
         AmberLed led = AmberLed.forContext(context);
-        final int v = value;
-        new Thread(() -> led.apply(v), "amber-write").start();
-        applyWhite(context, v);
+        new Thread(() -> led.apply(warmth, base), "amber-write").start();
+        applyWhite(context, warmth);
     }
 
     private void mirrorSetting() {
@@ -189,6 +200,50 @@ public final class AmberService extends Service {
         writeWhite(context, crossfadeWhite(base, warmth));
     }
 
+    /**
+     * Total lamp output for the mix: the captured white base while the
+     * crossfade is engaged, otherwise the user's current brightness. This is
+     * the B in both channel formulas.
+     */
+    static int lampBase(Context context) {
+        int stored = prefs(context).getInt(PREF_WHITE_BASE, -1);
+        if (stored >= 0) {
+            return clampWhite(stored);
+        }
+        int cur = readWhite(context);
+        if (cur < 0) {
+            // Brightness unreadable (fresh /data, before the display service
+            // seeds it): assume a full lamp so the frontlight still lights up.
+            return WHITE_MAX;
+        }
+        return clampWhite(cur);
+    }
+
+    /**
+     * The amber half of the mix: {@code round((B / 255) * w * node_max)}.
+     *
+     * The single place the amber scale is computed. Rounding is to nearest so
+     * the mix tracks the slider symmetrically with the white side, with one
+     * deliberate exception: past the halfway point of the fade the lamp is
+     * mostly amber, so a base dim enough to round the amber channel to 0 is
+     * floored at 1 instead — at minimum brightness and full warmth the panel
+     * must still glow rather than go dark.
+     */
+    static int amberNodeValue(int warmth, int base, int nodeMax) {
+        int w10 = clampWarmth(warmth);
+        if (w10 <= 0 || nodeMax <= 0) {
+            return 0;
+        }
+        int b = clampWhite(base);
+        double w = (double) w10 / SETTING_MAX;
+        double lamp = (double) b / WHITE_MAX;
+        int value = (int) Math.round(lamp * w * nodeMax);
+        if (value < 1 && w > 0.5d) {
+            value = 1;
+        }
+        return Math.max(0, Math.min(nodeMax, value));
+    }
+
     /** white = max(floor, round(base * (1 - w))), clamped to never exceed base. */
     static int crossfadeWhite(int base, int warmth) {
         double w = (double) clampWarmth(warmth) / SETTING_MAX;
@@ -200,8 +255,16 @@ public final class AmberService extends Service {
 
     /**
      * The user moved the brightness slider while the crossfade was engaged.
-     * Their value is the *crossfaded* white they want, so the base they mean is
-     * observed / (1 - w); store that and re-derive so the two stay consistent.
+     * Brightness is the whole lamp's output now, so their value re-derives the
+     * base and <em>both</em> channels are rewritten from it — same warmth, same
+     * hue, more or less light.
+     *
+     * Mid-fade their value is the crossfaded white they picked, so the base
+     * they mean is observed / (1 - w). At full warmth white is pinned at the
+     * floor and carries no scale information, so the value they picked is read
+     * as the lamp total directly; white then returns to the floor and the extra
+     * light they asked for comes out of the amber channel, which is the whole
+     * point of a warmth mix.
      */
     static void rebaseWhite(Context context) {
         SharedPreferences p = prefs(context);
@@ -221,15 +284,23 @@ public final class AmberService extends Service {
             return;                 // disengaging; applyWhite owns that path
         }
         double remaining = 1.0d - (double) warmth / SETTING_MAX;
-        if (remaining <= 0.0d || observed <= Math.min(WHITE_FLOOR, base)) {
-            // Fully warm, or pinned at the floor: the observed value carries no
-            // recoverable base, so keep the one we have and let them be.
+        int newBase;
+        if (remaining <= 0.0d) {
+            // Fully warm: white is decoupled, so read their pick as lamp total.
+            newBase = clampWhite(observed);
+        } else if (observed <= Math.min(WHITE_FLOOR, base)) {
+            // Pinned at the floor mid-fade: nothing recoverable, leave them be.
             return;
+        } else {
+            newBase = clampWhite((int) Math.round(observed / remaining));
         }
-        int newBase = clampWhite((int) Math.round(observed / remaining));
         p.edit().putInt(PREF_WHITE_BASE, newBase).apply();
-        Log.d(TAG, "white rebased: observed=" + observed + " -> base=" + newBase);
+        Log.d(TAG, "lamp rebased: observed=" + observed + " -> base=" + newBase);
         writeWhite(context, crossfadeWhite(newBase, warmth));
+        // Brightness scales the whole lamp, so the amber channel moves too.
+        AmberLed led = AmberLed.forContext(context);
+        final int b = newBase;
+        new Thread(() -> led.apply(warmth, b), "amber-write").start();
     }
 
     // ── small helpers ───────────────────────────────────────────────────
@@ -295,7 +366,9 @@ public final class AmberService extends Service {
 
     /**
      * Wraps the amber kernel LED node: resolution (override → persisted →
-     * discovery) and value scaling (setting 0..1023 → node 0..max_brightness).
+     * discovery) and the node write. The value itself comes from
+     * {@link AmberService#amberNodeValue}, which is the only place the amber
+     * scale is computed.
      */
     static final class AmberLed {
         final Context context;
@@ -310,20 +383,19 @@ public final class AmberService extends Service {
             return new AmberLed(context);
         }
 
-        synchronized void apply(int settingValue) {
+        /**
+         * @param warmth mix rate, 0..SETTING_MAX
+         * @param base   lamp output, i.e. the white brightness base 1..255
+         */
+        synchronized void apply(int warmth, int base) {
             if (!resolve()) {
                 Log.d(TAG, "no amber node yet, skipping write");
                 return;
             }
-            long scaled = (long) settingValue * nodeMax / SETTING_MAX;
-            if (scaled < 0) {
-                scaled = 0;
-            }
-            if (scaled > nodeMax) {
-                scaled = nodeMax;
-            }
-            if (writeFile(node, String.valueOf(scaled))) {
-                Log.d(TAG, "amber=" + settingValue + " -> " + node + "=" + scaled);
+            int value = amberNodeValue(warmth, base, nodeMax);
+            if (writeFile(node, String.valueOf(value))) {
+                Log.d(TAG, "warmth=" + warmth + " base=" + base + " -> "
+                        + node + "=" + value + "/" + nodeMax);
             } else {
                 Log.w(TAG, "write failed for " + node + " (SELinux? node moved?)");
             }
