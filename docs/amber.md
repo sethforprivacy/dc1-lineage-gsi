@@ -115,15 +115,22 @@ nodes itself, and `screen_brightness` is only the lamp total B.
 ### The fight, and how it's won
 
 The framework re-applies brightness — and the HAL re-asserts its white=1
-split — on slider ramps, screen wake, and boot. AmberControl therefore
-re-asserts the mix:
+split — on slider ramps, screen wake, boot, dim cycles and early-wake ramps
+(the last two fire no setting change and no broadcast at all). AmberControl
+therefore defends the mix at three levels:
 
-- immediately on every setting change (the observers),
+- immediately on every observed setting change (the observers),
 - once more ~2.5 s later, after the brightness ramp has fully settled
   (debounced: each new change pushes the re-assert out),
-- on `ACTION_SCREEN_ON`, and once after boot settle.
+- on `ACTION_SCREEN_ON`, once after boot settle, and — the safety net that
+  catches every remaining path — a **node watchdog** every 2 s: the driven
+  nodes are read back (the LED class echoes the last value written, whoever
+  wrote it) and compared with the last mix the app wrote; drift is corrected
+  on the spot. This is what makes the frontlight self-heal after e.g. an
+  Off→Full preset jump followed by a framework brightness re-apply.
 
-### Channel plumbing (live-configurable)
+All node writes run on the service's single handler thread, so the two
+channels of one mirror pass can never land interleaved with another pass.
 
 Both halves are re-read from `Settings.System` on every mirror pass, so a
 `settings put` changes the plumbing live, no reflash:

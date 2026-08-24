@@ -119,13 +119,6 @@ public final class AmberService extends Service {
     /** The DC-1's white string (MediaTek's standard backlight LED name). */
     private static final String WHITE_NODE_FALLBACK =
             "/sys/class/leds/lcd-backlight/brightness";
-    private static final String PREF = "amber";
-    private static final String PREF_NODE = "node";
-    /** The user's own white level, held while the crossfade is engaged. */
-    private static final String PREF_WHITE_BASE = "white_base";
-    /** Last white value this app wrote — lets us ignore our own echo. */
-    private static final String PREF_WHITE_LAST = "white_last";
-
     /**
      * How long after the last brightness change to re-assert the mix. The
      * framework's brightness ramp (DisplayPowerController → lights HAL) takes
@@ -134,6 +127,28 @@ public final class AmberService extends Service {
      * panel flips to the HAL's idea of the mix until the next warmth change.
      */
     private static final long REMIRROR_DELAY_MS = 2500;
+
+    /**
+     * Watchdog period. The framework also re-applies brightness with no
+     * observable event (dim cycles, early-wake ramps, policy restores), and
+     * each apply re-clobbers both LED nodes with the HAL's split. Rather than
+     * chase every trigger, the driven nodes are read back and compared with
+     * the last mix this app wrote; drift is corrected within one period.
+     */
+    private static final long WATCHDOG_MS = 2000;
+
+    /** The mix this app last wrote, for the watchdog. Null/-1 = not driven. */
+    private static volatile String sAmberNode;
+    private static volatile int sAmberValue = -1;
+    private static volatile String sWhiteNode;
+    private static volatile int sWhiteValue = -1;
+    private static final String PREF = "amber";
+    private static final String PREF_NODE = "node";
+    /** The user's own white level, held while the crossfade is engaged. */
+    private static final String PREF_WHITE_BASE = "white_base";
+    /** Last white value this app wrote — lets us ignore our own echo. */
+    private static final String PREF_WHITE_LAST = "white_last";
+
 
     /** Daylight's app shows 0..255; "255" = full = this constant. */
     static final int DEFAULT_AMBER = propInt(PROP_DEFAULT, 1023);
@@ -158,6 +173,25 @@ public final class AmberService extends Service {
             mirrorSetting();
         }
     };
+
+    /**
+     * The node watchdog: read back the driven nodes and compare with the last
+     * mix written; on drift (the vendor HAL re-asserts its white=1/amber=B-1
+     * split on framework brightness applies that change no setting and fire
+     * no broadcast), re-assert the mix. Self-heals every clobber path in one
+     * place, including the ones nobody has observed yet.
+     */
+    private final Runnable mWatchdog = new Runnable() {
+        @Override
+        public void run() {
+            if (nodesDrifted()) {
+                Log.i(TAG, "node drift detected (vendor HAL re-asserted); re-mirroring");
+                mirrorSetting();
+            }
+            mHandler.postDelayed(mWatchdog, WATCHDOG_MS);
+        }
+    };
+
     @Override
     public void onCreate() {
         super.onCreate();
@@ -222,6 +256,11 @@ public final class AmberService extends Service {
             }
         };
         registerReceiver(mScreenOnReceiver, new IntentFilter(Intent.ACTION_SCREEN_ON));
+
+        // The watchdog is the safety net for every framework brightness
+        // apply that fires no observable event (dim cycles, early-wake
+        // ramps): it reads the nodes back and corrects drift within 2s.
+        mHandler.postDelayed(mWatchdog, WATCHDOG_MS);
     }
 
     @Override
@@ -238,12 +277,34 @@ public final class AmberService extends Service {
     @Override
     public void onDestroy() {
         mHandler.removeCallbacks(mRemirror);
+        mHandler.removeCallbacks(mWatchdog);
         unregisterReceiver(mScreenOnReceiver);
         ContentResolver cr = getContentResolver();
         cr.unregisterContentObserver(mObserver);
         cr.unregisterContentObserver(mWhiteObserver);
         cr.unregisterContentObserver(mConfigObserver);
         super.onDestroy();
+    }
+
+    /**
+     * @return true when a driven LED node no longer holds the value this app
+     *         last wrote — i.e. something else (the vendor lights HAL, on any
+     *         framework brightness apply) has re-written it since.
+     */
+    private static boolean nodesDrifted() {
+        if (sAmberNode != null && sAmberValue >= 0) {
+            int v = AmberLed.readNodeValue(sAmberNode);
+            if (v >= 0 && v != sAmberValue) {
+                return true;
+            }
+        }
+        if (sWhiteNode != null && sWhiteValue >= 0) {
+            int v = AmberLed.readNodeValue(sWhiteNode);
+            if (v >= 0 && v != sWhiteValue) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -477,8 +538,15 @@ public final class AmberService extends Service {
                         ? "<none>" : amberValue + "/" + amberMax)
                 + " white=" + white);
 
+        // Record the expected hardware state for the watchdog, then write.
+        // Writes are synchronous on the caller's thread: every caller runs on
+        // the service's handler thread, so the two nodes can never land out
+        // of order relative to each other (the kernel driver serialises per
+        // node anyway; this keeps whole mirror passes ordered too).
+        sAmberNode = amberNode;
+        sAmberValue = amberValue;
         if (amberValue >= 0) {
-            new Thread(() -> led.write(amberValue), "amber-write").start();
+            led.write(amberValue);
         }
     }
 
@@ -564,24 +632,26 @@ public final class AmberService extends Service {
         if (max <= 0) {
             Log.w(TAG, "white node " + node
                     + " has no usable max_brightness; white left alone");
+            sWhiteNode = null;
+            sWhiteValue = -1;
             return "<no-max>";
         }
         int share = crossfadeWhite(clampWhite(lampTotal), warmth, 0);
         int scaled = (int) Math.round((double) share / WHITE_MAX * max);
         final int value = Math.max(0, Math.min(max, scaled));
-        new Thread(() -> {
-            if (!AmberLed.writeFile(node, String.valueOf(value))) {
-                Log.w(TAG, "white node write failed: " + node
-                        + " (SELinux? DAC? node moved?)");
-            }
-        }, "white-write").start();
+        sWhiteNode = node;
+        sWhiteValue = value;
+        if (!AmberLed.writeFile(node, String.valueOf(value))) {
+            Log.w(TAG, "white node write failed: " + node
+                    + " (SELinux? DAC? node moved?)");
+        }
         return value + "/" + max;
     }
 
     /**
      * Give the user their own brightness back and forget the captured base.
      * Called when the white half stops going through {@code screen_brightness},
-     * so switching modes live never leaves the slider pinned at a crossfaded
+     * so switching modes live never leaves the slider stranded at a crossfaded
      * value with nothing left to restore it.
      */
     private static void releaseBrightnessBase(Context context) {
@@ -959,6 +1029,23 @@ public final class AmberService extends Service {
                 return Integer.parseInt(s.trim());
             } catch (Exception e) {
                 return 0;
+            }
+        }
+
+        /**
+         * @return the node's current brightness (the LED class echoes back
+         *         the last value written, whoever wrote it — that is exactly
+         *         what the watchdog wants to compare), or -1 when unreadable.
+         */
+        static int readNodeValue(String path) {
+            String s = readFile(path);
+            if (s == null) {
+                return -1;
+            }
+            try {
+                return Integer.parseInt(s.trim());
+            } catch (Exception e) {
+                return -1;
             }
         }
 
