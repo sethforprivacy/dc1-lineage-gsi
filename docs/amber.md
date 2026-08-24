@@ -30,8 +30,8 @@ the `AmberControl` app once — the value persists in the setting.
 │ AmberControl (platform-priv-app, system_ext/priv-app)                               │
 │  • QS tile "Amber"             – toggle on (default value) / off                    │
 │  • Cool↔warm slider + presets  – 0..1023, saved in-app                  │
-│  • AmberService                – SettingsObserver on screen_brightness_amber_rate,  │
-│                                   writes scaled value to the amber LED node         │
+│  • AmberService                – mirrors the rate: writes BOTH LED nodes (amber +  │
+│                                   white, see "How the frontlight actually works")  │
 │  • Channel plumbing (live)     – dc1_amber_node / dc1_white_mode, re-read per pass  │
 │  • Node resolution, in order:                                                       │
 │      1. dc1_amber_node (Settings.System live override, diagnostics)                 │
@@ -90,44 +90,58 @@ The rules land in `system_ext_sepolicy.cil` via
 assertions are off in this GSI (`device/phh/treble/base.mk` sets
 `SELINUX_IGNORE_NEVERALLOWS := true`), so the attribute change builds.
 
-## Live channel mapping (diagnostics)
+## How the frontlight actually works (verified on hardware)
 
-**Open question as of the last on-device session.** The channel↔string mapping
-is not settled on a GSI:
+Mapped live on the device, 2026-08-24, with the kernel log as the instrument
+(`adb logcat -b kernel | grep -E '\[Light\] Set|rt4539'` shows every node write
+with its sysfs value, every chip enable/disable with its reason, and every i2c
+brightness transition):
 
-| observation | verified live |
+| fact | evidence |
 |---|---|
-| `/sys/class/leds/lcd-backlight-amber/brightness` (chip i2c `2-003c`) written to 255 | accepts the write, emits **zero light** — a physical no-op, not a DAC/SELinux/scaling failure |
-| Android's own brightness pipeline (HWC `setDisplayBrightness`; the lights HAL exposes no lights at all) | **does** emit light, and the light **is amber** — which string it drives is unknown |
-| `/sys/class/leds/lcd-backlight/brightness` (chip i2c `5-003c`) | never driven directly; DAC blocked it (root:root 0644, and the old rc only chmod'd the amber node) |
+| Two frontlight chips, both Richtek **RT4539** (GPL driver `leds-rt4539.c` in Daylight's kernel drop) | `/sys/bus/i2c/devices/{2,5}-003c/driver -> rt4539`; DTS `bl_amb`/`bl_wht` nodes, enable GPIOs 99/98 |
+| Amber string = `lcd-backlight-amber` (i2c `2-003c`); white string = `lcd-backlight` (i2c `5-003c`) | kernel log during the mapping experiments; DTS labels |
+| Both strings are physically alive | `rt4539_enable: off-to-on` + `i2c_brightness_set: 0->…` on **both** nodes when driven directly; owner saw white and amber |
+| The framework brightness pipeline goes through the **vendor lights HAL**, which writes BOTH nodes on every change with a fixed split: `white=1, amber=B-1` | HAL log lines `set_light_backlight: white=1 (brightness N)` / `amber=N-1` on every brightness ramp step |
+| Why white never lit via the framework: sysfs 1 → hw level 16 = exactly the driver's on-threshold (`hw-brightness-on-threshold = <16>`, "hw brightness 1-16 ⇒ screen on backlight off") | kernel log `rt4539_disable: screen on backlight off` after every HAL white=1 write |
+| The old "amber writes are a physical no-op" observation is fully explained: the app's node writes DID reach the chip — the HAL then overwrote both nodes milliseconds later during the brightness ramp | live kernel log: app write `209->3212` then HAL ramp writes over it |
+| The driver's HWC gate exists but only bites at display-off/doze; the `hwcomposer_disabled_backlight_off_bypass=1` init write makes it a no-op (`rt4539_brightness_force_off: bypassed`) | kernel log at screen-off after the v8 build |
 
-The leading hypothesis for the dead amber node is a **driver-side gate**: the
-chip device dir exposes Daylight-custom attributes, among them
-`hwcomposer_disabled_backlight_off_bypass`, which reads like an escape hatch
-from a "hwcomposer disabled ⇒ backlight off" interlock that the stock display
-stack satisfied and a GSI does not. `dc1-amber.rc` now writes `1` to it on
-**both** chips (init can: `/sys/bus/i2c/devices/*-003c/*` is plain `sysfs`,
-which the shell may not write and init may — see `sepolicy/dc1amber.te`), and
-chmods **both** leds-class brightness nodes so either can be driven from
-userspace.
+The HAL's ratio input is not public (closed-source Daylight binary) and not
+driven by any framework-visible setting (night display / LiveDisplay don't
+touch it). So the mix is driven **directly**: AmberControl writes both LED
+nodes itself, and `screen_brightness` is only the lamp total B.
 
-To make the remaining experiments possible **without another flash**, both
-halves of the mix are re-read from `Settings.System` on every mirror pass
-(nothing is cached across a change):
+### The fight, and how it's won
+
+The framework re-applies brightness — and the HAL re-asserts its white=1
+split — on slider ramps, screen wake, and boot. AmberControl therefore
+re-asserts the mix:
+
+- immediately on every setting change (the observers),
+- once more ~2.5 s later, after the brightness ramp has fully settled
+  (debounced: each new change pushes the re-assert out),
+- on `ACTION_SCREEN_ON`, and once after boot settle.
+
+### Channel plumbing (live-configurable)
+
+Both halves are re-read from `Settings.System` on every mirror pass, so a
+`settings put` changes the plumbing live, no reflash:
 
 | key | values | meaning |
 |---|---|---|
-| `dc1_amber_node` | absolute path | the amber brightness node; unset = normal resolution (prop → persisted → discovery) |
-| `dc1_white_mode` | `brightness` | **default.** White half = the `screen_brightness` setting, i.e. the framework/HWC pipeline |
+| `dc1_amber_node` | absolute path | override the amber node; unset = normal resolution (prop → persisted → discovery) |
+| `dc1_white_mode` | `node` | **default.** White half = the DC-1's white LED node directly (`ro.dc1.white.node` prop → `/sys/class/leds/lcd-backlight/brightness`) |
 | | `node:<path>` | white half = that sysfs node, scaled to **its own** `max_brightness`; `screen_brightness` is left alone |
+| | `brightness` | white half = the framework pipeline (the HAL's split applies — white will not light; kept for diagnosis/stock-like behaviour) |
 | | `off` | the white half is not driven at all |
 
-The rate model is unchanged: `amber = (B/255) * w * amber_node_max` and
-`white = max(floor, B * (1 - w))`, with B the lamp total (read from
-`screen_brightness`) and w the warmth rate. `node:` mode only rescales the
-white share to the node's max at the last step. Unparseable values fall back
-to the defaults with a warning; the keys are also observed, so a `settings
-put` applies immediately.
+The rate model: `amber = (B/255) * w * amber_node_max` and
+`white = round(B * (1 - w))` rescaled to the white node's max. In node mode
+the white floor is 0 — at full warmth the panel is lit purely by amber (the
+stock candlelight look, owner-verified). In brightness mode the floor is
+`ro.dc1.amber.white_floor` (10): a dead amber node must not mean a dark panel.
+Unparseable values fall back to the defaults with a warning.
 
 Every mirror logs one line with the resolved config and both channel values:
 
@@ -137,63 +151,29 @@ I AmberControl: mix: amber_node=/sys/class/leds/lcd-backlight-amber/brightness \
   B=200 w=0.500(512/1023) -> amber=100/255 white=803/2047
 ```
 
-### Driving the experiments over adb
+### Observing the plumbing over adb
 
 ```bash
-adb logcat -c && adb logcat -s AmberControl &     # watch the mix lines
+adb logcat -s AmberControl        # the mix lines above
+adb logcat -b kernel | grep -E '\[Light\] Set|rt4539'   # every chip-level effect
+adb logcat -b main | grep set_light_backlight           # what the HAL is writing
 
-# 0. chip state. The attrs ship root-only, so init chmods them 0644 at
-#    boot_completed — the shell can then read (never write) the driver's
-#    own view of both chips: 2-003c is the lcd-backlight-amber chip,
-#    5-003c the lcd-backlight one.
+# chip state (attrs ship root-only; init chmods them 0644 at boot_completed —
+# if SELinux still blocks the shell, the kernel log above is the fallback):
 for c in 2 5; do
-  echo "== chip $c-003c"
-  adb shell cat /sys/bus/i2c/devices/$c-003c/hwcomposer_disabled_backlight_off_bypass
   adb shell cat /sys/bus/i2c/devices/$c-003c/i2c_brightness   # driver's own value
   adb shell cat /sys/bus/i2c/devices/$c-003c/registers        # full register dump
 done
 
-# 1. does the amber node light up now that the gate is bypassed?
-adb shell settings put system dc1_white_mode off              # white out of the way
+# try a different plumbing live:
+adb shell settings put system dc1_white_mode off
 adb shell settings put system screen_brightness_amber_rate 1023
-adb shell 'echo 255 > /sys/class/leds/lcd-backlight-amber/brightness'   # also by hand
-adb shell cat /sys/class/leds/lcd-backlight-amber/brightness
-adb shell cat /sys/bus/i2c/devices/2-003c/i2c_brightness       # did the chip value move?
-
-# 2. what is the OTHER chip's string? (5-003c, never driven before)
-adb shell settings put system dc1_amber_node /sys/class/leds/lcd-backlight/brightness
-adb shell settings put system screen_brightness_amber_rate 1023   # full "amber" on 5-003c
-adb shell settings put system screen_brightness_amber_rate 0      # off again
-adb shell cat /sys/bus/i2c/devices/5-003c/i2c_brightness
-
-# 3. two-node crossfade: amber on one string, white on the other,
-#    with screen_brightness (the pipeline that DOES emit) left alone
-adb shell settings put system dc1_amber_node /sys/class/leds/lcd-backlight-amber/brightness
-adb shell settings put system dc1_white_mode node:/sys/class/leds/lcd-backlight/brightness
-adb shell settings put system screen_brightness_amber_rate 512
-
-# 4. back to the shipped behaviour (white via the framework pipeline)
-adb shell settings delete system dc1_amber_node
-adb shell settings delete system dc1_white_mode
+adb shell settings delete system dc1_white_mode    # back to the default (node)
 ```
 
-Note `dc1_white_mode=off` and `node:` both hand the user's captured brightness
-base back to `screen_brightness` on the way out, so switching modes live never
-leaves the slider stranded at a crossfaded value.
-
-Chip state is the instrument that makes the gate observable without eyes on
-the panel: if a brightness write moves `i2c_brightness`/`registers` on one chip
-but not the other, the difference is the node mapping; if it moves neither, the
-gate is still shut. `dc1-amber.rc` chmods `registers`, `i2c_brightness`,
-`hwcomposer_disabled_backlight_off_bypass` and
-`can_not_see_backlight_brightness_threshold` to 0644 on both chips at
-`boot_completed`, so plain `cat` reads them live — no snapshotting, no props.
-
-(If SELinux still blocks the shell on those attrs, the kernel log is the
-fallback and needs no permissions at all: `adb logcat -b kernel | grep -E
-'\[Light\] Set|rt4539'` shows every node write with its sysfs value, every
-chip enable/disable with its reason, and every i2c brightness transition —
-verified live on v7.)
+Note `dc1_white_mode=off` and `brightness` both hand the user's captured
+brightness base back to `screen_brightness` on the way out, so switching modes
+live never leaves the slider stranded at a crossfaded value.
 
 ## If auto-discovery picks the wrong node
 
@@ -212,12 +192,13 @@ The app logs its node choice: `adb logcat -s AmberControl`.
 
 ```bash
 adb shell settings get system screen_brightness_amber_rate   # 1023 after first boot
-adb shell settings put system screen_brightness_amber_rate 0   # amber off
-adb shell settings put system screen_brightness_amber_rate 1023  # amber full
+adb shell settings put system screen_brightness_amber_rate 0   # pure white
+adb shell settings put system screen_brightness_amber_rate 1023  # full amber
 ```
 
-Watch the frontlight; the LED response is instant (the service writes on
-every setting change).
+Watch the frontlight: the hue sweeps white↔amber with the setting, at constant
+overall brightness (the lamp total is `screen_brightness`). The chip-level
+view (`logcat -b kernel`) shows the inverse-pair node writes on every change.
 
 ## Legacy root tooling
 

@@ -1,9 +1,11 @@
 package com.dc1.amber;
 
 import android.app.Service;
+import android.content.BroadcastReceiver;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.database.ContentObserver;
 import android.net.Uri;
@@ -42,30 +44,41 @@ import java.util.Locale;
  * sits at the floor and the panel is lit by amber alone, at the chosen
  * brightness — stock Daylight's candlelight look.
  *
- * <h3>Live channel plumbing (diagnostics)</h3>
+ * <h3>Channel plumbing (verified on hardware, 2026-08-24)</h3>
  *
- * Which physical string each half of the mix actually drives is not yet known
- * on a GSI: writing /sys/class/leds/lcd-backlight-amber produces no light at
- * all, while the framework brightness pipeline produces light that <em>is</em>
- * amber. Nailing that down needs experiments on hardware, so both halves are
- * re-read from {@code Settings.System} on <em>every</em> mirror pass — nothing
- * is cached across a change, and no reflash is needed to try a mapping:
+ * The DC-1 has two Richtek RT4539 frontlight chips (kernel driver
+ * leds-rt4539): the amber string at i2c 2-003c exposes
+ * /sys/class/leds/lcd-backlight-amber, the white string at i2c 5-003c exposes
+ * /sys/class/leds/lcd-backlight. The framework's brightness pipeline goes
+ * through the vendor lights HAL, which rewrites <em>both</em> nodes on every
+ * brightness change with its own split (white pinned at sysfs 1 — below the
+ * driver's on-threshold, so white never lights — and amber at B-1). The HAL's
+ * ratio input is not public and not framework-visible, so the mix is driven
+ * <em>directly</em>: both LED nodes are written by this app, and
+ * {@code screen_brightness} is only the lamp total (B).
+ *
+ * Because the HAL keeps re-asserting its split whenever the framework applies
+ * brightness (slider ramps, screen wake, boot), the mix is re-asserted after
+ * each such event: once immediately, and once more after the ~2s ramp ends
+ * ({@link #scheduleRemirror()}), plus on ACTION_SCREEN_ON.
+ *
+ * The plumbing stays live-configurable from {@code Settings.System} for
+ * diagnosis, re-read on <em>every</em> mirror pass:
  *
  * <ul>
- *   <li>{@code dc1_amber_node} — absolute /sys path of the amber brightness
- *       node. Unset (the default) keeps the normal resolution order below.</li>
+ *   <li>{@code dc1_amber_node} — absolute /sys path overriding the amber
+ *       node. Unset keeps the normal resolution order below.</li>
  *   <li>{@code dc1_white_mode} — how the white half is driven:
- *       {@code brightness} (default; the {@code screen_brightness} setting,
- *       i.e. the framework/HWC pipeline), {@code node:<path>} (write that sysfs
- *       node, scaled to <em>its own</em> max_brightness, and leave
- *       {@code screen_brightness} alone), or {@code off} (do not drive the
- *       white half at all).</li>
+ *       {@code node} (default; the DC-1's white LED node directly, resolved
+ *       from {@code ro.dc1.white.node} or /sys/class/leds/lcd-backlight),
+ *       {@code node:<path>} (an explicit node), {@code brightness} (the
+ *       framework pipeline — HAL split applies, white will not light), or
+ *       {@code off} (do not drive the white half at all).</li>
  * </ul>
  *
  * Every mirror logs one line with the resolved configuration and both computed
- * channel values, so an experiment is one {@code settings put} plus one
- * {@code logcat -s AmberControl}. Unparseable values fall back to the defaults
- * with a warning. See docs/amber.md.
+ * channel values ({@code mix: ...}); unparseable values fall back to the
+ * defaults with a warning. See docs/amber.md.
  *
  * The amber kernel node is found by:
  *   1. Settings.System dc1_amber_node   (live experiment override)
@@ -93,18 +106,34 @@ public final class AmberService extends Service {
 
     static final String WHITE_MODE_BRIGHTNESS = "brightness";
     static final String WHITE_MODE_OFF = "off";
+    /** Bare "node": resolve the white node like the amber one (prop → standard name). */
+    static final String WHITE_MODE_NODE = "node";
     static final String WHITE_MODE_NODE_PREFIX = "node:";
 
     private static final String PROP_OVERRIDE = "ro.dc1.amber.node";
+    /** White node override, same pattern as the amber one. */
+    private static final String PROP_WHITE_NODE = "ro.dc1.white.node";
     private static final String PROP_MAX = "ro.dc1.amber.max";
     private static final String PROP_DEFAULT = "ro.dc1.amber.default";
     private static final String PROP_WHITE_FLOOR = "ro.dc1.amber.white_floor";
+    /** The DC-1's white string (MediaTek's standard backlight LED name). */
+    private static final String WHITE_NODE_FALLBACK =
+            "/sys/class/leds/lcd-backlight/brightness";
     private static final String PREF = "amber";
     private static final String PREF_NODE = "node";
     /** The user's own white level, held while the crossfade is engaged. */
     private static final String PREF_WHITE_BASE = "white_base";
     /** Last white value this app wrote — lets us ignore our own echo. */
     private static final String PREF_WHITE_LAST = "white_last";
+
+    /**
+     * How long after the last brightness change to re-assert the mix. The
+     * framework's brightness ramp (DisplayPowerController → lights HAL) takes
+     * roughly two seconds and overwrites both LED nodes along the way with its
+     * own white/amber split; our write must land after the ramp ends, or the
+     * panel flips to the HAL's idea of the mix until the next warmth change.
+     */
+    private static final long REMIRROR_DELAY_MS = 2500;
 
     /** Daylight's app shows 0..255; "255" = full = this constant. */
     static final int DEFAULT_AMBER = propInt(PROP_DEFAULT, 1023);
@@ -113,14 +142,22 @@ public final class AmberService extends Service {
     static final int WHITE_MAX = 255;
     /** Never write 0: a black panel with a dead amber node is unrecoverable. */
     static final int WHITE_MIN = 1;
-    /** Where white lands at full warmth. */
+    /** Where white lands at full warmth in brightness mode. */
     static final int WHITE_FLOOR = propInt(PROP_WHITE_FLOOR, 10);
 
     private ContentObserver mObserver;
     private ContentObserver mWhiteObserver;
     private ContentObserver mConfigObserver;
+    private BroadcastReceiver mScreenOnReceiver;
     private final Handler mHandler = new Handler();
-
+    /** The pending post-ramp re-mirror, if any. */
+    private final Runnable mRemirror = new Runnable() {
+        @Override
+        public void run() {
+            Log.i(TAG, "re-asserting mix after brightness ramp");
+            mirrorSetting();
+        }
+    };
     @Override
     public void onCreate() {
         super.onCreate();
@@ -146,11 +183,12 @@ public final class AmberService extends Service {
                     rebaseWhite(AmberService.this);
                 } else if (!isOwnWhiteEcho(AmberService.this)) {
                     mirrorSetting();
+                    // The framework's brightness ramp rewrites both LED
+                    // nodes for ~2s after this; re-assert once it settles.
+                    scheduleRemirror();
                 }
             }
         };
-        cr.registerContentObserver(
-                Settings.System.getUriFor(WHITE_SETTING), false, mWhiteObserver);
 
         // Channel plumbing is re-read per mirror anyway; observing the keys
         // makes a live experiment a single `settings put` rather than a put
@@ -160,28 +198,60 @@ public final class AmberService extends Service {
             public void onChange(boolean selfChange, Uri uri) {
                 Log.i(TAG, "channel config changed (" + uri + "), re-mirroring");
                 mirrorSetting();
+                scheduleRemirror();
             }
         };
         cr.registerContentObserver(
                 Settings.System.getUriFor(SETTING_AMBER_NODE), false, mConfigObserver);
         cr.registerContentObserver(
                 Settings.System.getUriFor(SETTING_WHITE_MODE), false, mConfigObserver);
+
+        // Waking the display makes the framework re-apply its brightness to
+        // the lights HAL, which rewrites both LED nodes with its own
+        // white/amber split. Re-assert the mix when that happens: immediately
+        // (the wake apply itself) and after the ramp (a policy-restored
+        // brightness also ramps).
+        mScreenOnReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                Log.i(TAG, "screen on; re-asserting mix");
+                mirrorSetting();
+                scheduleRemirror();
+            }
+        };
+        registerReceiver(mScreenOnReceiver, new IntentFilter(Intent.ACTION_SCREEN_ON));
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         ensureDefaultValue(this);
         mirrorSetting();
+        // The display usually finishes coming up around boot-complete, after
+        // this first mirror; the HAL's boot-time apply would then own the
+        // nodes until the next setting change. Re-assert once it has settled.
+        scheduleRemirror();
         return START_STICKY;
     }
 
     @Override
     public void onDestroy() {
+        mHandler.removeCallbacks(mRemirror);
+        unregisterReceiver(mScreenOnReceiver);
         ContentResolver cr = getContentResolver();
         cr.unregisterContentObserver(mObserver);
         cr.unregisterContentObserver(mWhiteObserver);
         cr.unregisterContentObserver(mConfigObserver);
         super.onDestroy();
+    }
+
+    /**
+     * (Re)schedule the post-ramp re-mirror. Every call pushes the deadline
+     * out, so a dragged brightness slider — which fires the observer for each
+     * ramp step — still ends with exactly one re-assert, after the last ramp.
+     */
+    private void scheduleRemirror() {
+        mHandler.removeCallbacks(mRemirror);
+        mHandler.postDelayed(mRemirror, REMIRROR_DELAY_MS);
     }
 
     @Override
@@ -236,7 +306,21 @@ public final class AmberService extends Service {
             if (mode != null) {
                 mode = mode.trim();
             }
-            if (mode == null || mode.isEmpty() || WHITE_MODE_BRIGHTNESS.equals(mode)) {
+            if (mode == null || mode.isEmpty() || WHITE_MODE_NODE.equals(mode)) {
+                // Default (and bare "node"): drive the white string directly.
+                // Unset only when no white node exists, in which case the
+                // brightness pipeline is the safe fallback.
+                String node = defaultWhiteNode();
+                if (node != null) {
+                    return new Config(amber, MODE_NODE, node);
+                }
+                if (mode != null && !mode.isEmpty()) {
+                    Log.w(TAG, "no white LED node found; falling back to "
+                            + WHITE_MODE_BRIGHTNESS);
+                }
+                return new Config(amber, MODE_BRIGHTNESS, null);
+            }
+            if (WHITE_MODE_BRIGHTNESS.equals(mode)) {
                 return new Config(amber, MODE_BRIGHTNESS, null);
             }
             if (WHITE_MODE_OFF.equals(mode)) {
@@ -247,20 +331,45 @@ public final class AmberService extends Service {
                 if (raw.isEmpty()) {
                     Log.w(TAG, SETTING_WHITE_MODE + "='" + mode + "' has no path"
                             + " after '" + WHITE_MODE_NODE_PREFIX + "'; using "
-                            + WHITE_MODE_BRIGHTNESS);
-                    return new Config(amber, MODE_BRIGHTNESS, null);
+                            + WHITE_MODE_NODE);
+                    return resolveNodeOrBrightness(context, amber);
                 }
                 String path = sanitizeNode(raw, SETTING_WHITE_MODE);
                 if (path != null) {
                     return new Config(amber, MODE_NODE, path);
                 }
                 // sanitizeNode already logged why; fall back to the default.
-                return new Config(amber, MODE_BRIGHTNESS, null);
+                return resolveNodeOrBrightness(context, amber);
             }
             Log.w(TAG, SETTING_WHITE_MODE + "='" + mode + "' not understood"
-                    + " (want brightness | node:<path> | off); using "
-                    + WHITE_MODE_BRIGHTNESS);
-            return new Config(amber, MODE_BRIGHTNESS, null);
+                    + " (want node | node:<path> | brightness | off); using "
+                    + WHITE_MODE_NODE);
+            return resolveNodeOrBrightness(context, amber);
+        }
+
+        private static Config resolveNodeOrBrightness(Context context, String amber) {
+            String node = defaultWhiteNode();
+            return node != null
+                    ? new Config(amber, MODE_NODE, node)
+                    : new Config(amber, MODE_BRIGHTNESS, null);
+        }
+
+        /**
+         * The white node for bare {@code node} mode: maintainer prop first,
+         * then the DC-1's standard MediaTek backlight LED name.
+         *
+         * @return an existing node path, or null when neither resolves (the
+         *         caller then falls back to the brightness pipeline).
+         */
+        private static String defaultWhiteNode() {
+            String p = SystemProperties.get(PROP_WHITE_NODE);
+            if (!p.isEmpty() && new File(p).isFile()) {
+                return p;
+            }
+            if (new File(WHITE_NODE_FALLBACK).isFile()) {
+                return WHITE_NODE_FALLBACK;
+            }
+            return null;
         }
 
         /** The mode as it would be written to the setting; for the mix log. */
@@ -435,15 +544,17 @@ public final class AmberService extends Service {
     }
 
     /**
-     * Experiment mode: drive a sysfs node as the white half.
+     * White half driven by writing a sysfs node directly (the v9 default).
      *
      * The rate model is unchanged — the white share of the lamp is still
-     * {@code max(floor, round(B * (1 - w)))} on the framework's own 0..255
-     * scale — and only the final step differs: that share is rescaled to the
-     * node's own {@code max_brightness}, and {@code screen_brightness} is left
-     * entirely alone (so B keeps reading back as the user's lamp total). The
-     * floor survives the rescale on purpose: a raw node write is exactly the
-     * case where a fully dark panel would be unrecoverable.
+     * {@code round(B * (1 - w))} on the framework's own 0..255 scale — and
+     * only the final step differs: that share is rescaled to the node's own
+     * {@code max_brightness}, and {@code screen_brightness} is left entirely
+     * alone (so B keeps reading back as the user's lamp total).
+     *
+     * The floor is 0 here (not {@link #WHITE_FLOOR}): both strings are under
+     * our direct control, so at full warmth the panel is lit purely by amber
+     * — the stock candlelight look, verified live on hardware.
      */
     private static String applyWhiteNode(
             Context context, int warmth, int lampTotal, final String node) {
@@ -453,7 +564,7 @@ public final class AmberService extends Service {
                     + " has no usable max_brightness; white left alone");
             return "<no-max>";
         }
-        int share = crossfadeWhite(clampWhite(lampTotal), warmth);
+        int share = crossfadeWhite(clampWhite(lampTotal), warmth, 0);
         int scaled = (int) Math.round((double) share / WHITE_MAX * max);
         final int value = Math.max(0, Math.min(max, scaled));
         new Thread(() -> {
@@ -546,13 +657,25 @@ public final class AmberService extends Service {
         return Math.max(0, Math.min(nodeMax, value));
     }
 
-    /** white = max(floor, round(base * (1 - w))), clamped to never exceed base. */
-    static int crossfadeWhite(int base, int warmth) {
+    /**
+     * white = max(floor, round(base * (1 - w))), clamped to never exceed base.
+     *
+     * @param floor the minimum white share: {@link #WHITE_FLOOR} in brightness
+     *              mode (where a 0 write means a dark panel if amber is dead),
+     *              0 in node mode (where both strings are driven directly and
+     *              full warmth should be pure amber — the owner-verified look).
+     */
+    static int crossfadeWhite(int base, int warmth, int floor) {
         double w = (double) clampWarmth(warmth) / SETTING_MAX;
         int scaled = (int) Math.round(base * (1.0d - w));
         // A base dimmer than the floor must not be brightened by going warm.
-        int floor = Math.min(WHITE_FLOOR, base);
-        return Math.max(floor, Math.min(base, scaled));
+        int f = Math.min(floor, base);
+        return Math.max(f, Math.min(base, scaled));
+    }
+
+    /** Brightness-mode crossfade keeps the recovery floor. */
+    static int crossfadeWhite(int base, int warmth) {
+        return crossfadeWhite(base, warmth, WHITE_FLOOR);
     }
 
     /**
