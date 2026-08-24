@@ -14,6 +14,29 @@ typeattribute sysfs_leds mlstrustedobject;
 # chmod it; core policy gives init sysfs_leds write but not setattr.
 allow init sysfs_leds:file setattr;
 
+# dc1-amber.rc also has init write the Daylight LED driver's own chip-level
+# knobs (hwcomposer_disabled_backlight_off_bypass on i2c 2-003c and 5-003c) to
+# un-gate the amber string — see the .rc for the gate hypothesis. Those attrs
+# live under /sys/bus/i2c/devices/*-003c/, which no genfs_contexts rule labels,
+# so they are the generic `sysfs` type rather than sysfs_leds. Core policy is
+# not relied on for the write: this repo already found (sepolicy/dc1wlan.te)
+# that init lacks generic write on an unlabelled node class on this tree, so
+# grant it explicitly. Redundant-if-already-granted is fine — duplicate allows
+# are legal, and SELINUX_IGNORE_NEVERALLOWS is set in this GSI.
+#
+# init is s0 and plain sysfs is already mlstrustedobject, so no MLS gate here.
+# This widens init only — never an app domain — and init is already the domain
+# that relabels and chmods most of /sys, so no new attack surface is opened.
+# The dir/lnk_file perms are for path traversal: /sys/bus/i2c/devices/2-003c is
+# a symlink into /sys/devices/platform/..., which init must read to resolve.
+# `setattr` is for the second half of the .rc's chip block: it chmods those
+# same attrs 0644 so their state can be read back with `adb shell cat` (the
+# amber gate is only debuggable if the driver's own view is observable). Same
+# grant the sysfs_leds rule above needs, for the same reason.
+allow init sysfs:file { open write getattr setattr };
+allow init sysfs:dir { search open read getattr };
+allow init sysfs:lnk_file { read getattr };
+
 # AmberControl (platform_app) is the only domain that needs to drive the LED
 # node. It also inspects the class dirs for discovery.
 allow platform_app sysfs_leds:dir { search open read getattr };

@@ -10,10 +10,117 @@
 # /data the AmberControl package can still be in the first-boot "stopped"
 # state, which excludes it from BOOT_COMPLETED, so init seeds full amber
 # (Daylight UI scale: 255 = max) and the app takes over once launched.
+#
+# ── Diagnostic revision: two channels, one hwcomposer gate ────────────────
+#
+# Verified live on the DC-1:
+#   • /sys/class/leds/lcd-backlight-amber (chip i2c 2-003c) accepts writes up
+#     to 255 and emits ZERO light. A physical no-op, not a permissions or
+#     scaling problem.
+#   • Android's own brightness pipeline (HWC setDisplayBrightness — the lights
+#     HAL exposes no lights at all) DOES emit light, and that light is amber.
+#     Which physical string it drives is still unknown; the other leds-class
+#     node, /sys/class/leds/lcd-backlight (chip i2c 5-003c), has never been
+#     driven directly because DAC blocked it.
+#
+# Hypothesis for the dead amber node: the Daylight LED driver gates its output
+# on a "hwcomposer is enabled" signal that the stock display stack supplied and
+# a GSI does not. The chip device dirs expose the driver's custom knobs —
+# can_not_see_backlight_brightness_threshold(_hw), display_on_backlight_on_
+# delay_us, hwcomposer_disabled_backlight_off_bypass, hwcomposer_disabled_
+# backlight_off_delay_us, i2c_brightness, registers, screen_off_backlight_off_*
+# — and `hwcomposer_disabled_backlight_off_bypass` reads exactly like the
+# escape hatch: bypass the "hwcomposer disabled ⇒ backlight off" rule. Set it
+# on BOTH chips (harmless where output is already un-gated) so a brightness
+# write can be attributed to a string rather than to the gate.
+#
+# Two things this makes possible without another flash:
+#   • chmod on BOTH brightness nodes, so AmberControl can be pointed at either
+#     one live (Settings.System key dc1_amber_node / dc1_white_mode — see
+#     docs/amber.md);
+#   • the chip attrs get written by init, because /sys/bus/i2c/devices/*-003c/*
+#     is plain `sysfs` that init may write and the shell may not.
 
 on post-fs-data
+    # DAC gate for both leds-class channels: amber (2-003c) and the
+    # never-yet-driven white/unknown channel (5-003c).
     chmod 0666 /sys/class/leds/lcd-backlight-amber/brightness
+    chmod 0666 /sys/class/leds/lcd-backlight/brightness
+
+    # Un-gate the driver's hwcomposer interlock on both chips (see above).
+    write /sys/bus/i2c/devices/2-003c/hwcomposer_disabled_backlight_off_bypass 1
+    write /sys/bus/i2c/devices/5-003c/hwcomposer_disabled_backlight_off_bypass 1
+
+    # Out-of-box amber seed (Daylight UI scale: 255 = max), unchanged.
     write /sys/class/leds/lcd-backlight-amber/brightness 255
 
 on property:sys.boot_completed=1
     chmod 0666 /sys/class/leds/lcd-backlight-amber/brightness
+    chmod 0666 /sys/class/leds/lcd-backlight/brightness
+
+    # Re-assert: the display stack comes up between post-fs-data and here, and
+    # if it (re-)initialises the chip the bypass bit may have been cleared.
+    write /sys/bus/i2c/devices/2-003c/hwcomposer_disabled_backlight_off_bypass 1
+    write /sys/bus/i2c/devices/5-003c/hwcomposer_disabled_backlight_off_bypass 1
+
+    # ── Chip-state readback, the DAC way ─────────────────────────────────
+    # Same goal as the debug-prop block below (see its comment for why chip
+    # state is the instrument that makes the gate observable), but the
+    # mechanism is a mode change rather than an init command: `read` is NOT an
+    # Android init command — the command list is write/copy/copy_per_line/
+    # chmod/setprop/... plus `readahead`, with no `read` — so those lines
+    # cannot parse and init will log "invalid command 'read'" for each. Giving
+    # the attrs a read bit gets the same data with `adb shell cat`, no props
+    # and no trigger:
+    #
+    #   adb shell cat /sys/bus/i2c/devices/2-003c/registers        # chip 2 dump
+    #   adb shell cat /sys/bus/i2c/devices/5-003c/registers        # chip 5 dump
+    #   adb shell cat /sys/bus/i2c/devices/[25]-003c/i2c_brightness
+    #   adb shell cat /sys/bus/i2c/devices/[25]-003c/hwcomposer_disabled_backlight_off_bypass
+    #
+    # 0644, not 0666: read for everyone (driver state, nothing sensitive),
+    # writes still root-only — and root ignores the missing write bit on the
+    # attrs that ship 0200, so init's writes above keep working.
+    chmod 0644 /sys/bus/i2c/devices/2-003c/registers
+    chmod 0644 /sys/bus/i2c/devices/5-003c/registers
+    chmod 0644 /sys/bus/i2c/devices/2-003c/i2c_brightness
+    chmod 0644 /sys/bus/i2c/devices/5-003c/i2c_brightness
+    chmod 0644 /sys/bus/i2c/devices/2-003c/hwcomposer_disabled_backlight_off_bypass
+    chmod 0644 /sys/bus/i2c/devices/5-003c/hwcomposer_disabled_backlight_off_bypass
+    chmod 0644 /sys/bus/i2c/devices/2-003c/can_not_see_backlight_brightness_threshold
+    chmod 0644 /sys/bus/i2c/devices/5-003c/can_not_see_backlight_brightness_threshold
+
+
+# ── Chip-state readback: registers → debug props ──────────────────────────
+# NOTE: `read` is not an init command (verified against AOSP init's documented
+# command list); init will reject all eight lines below at parse time and the
+# debug.dc1.* props will never be set. Kept as the record of intent — the
+# chmod block in the boot_completed trigger above delivers the same readback
+# through `adb shell cat`. Delete this trigger once that is confirmed on the
+# device.
+#
+# The chip attrs are root-only (mode 0200/0600): the shell can neither read
+# nor write them, but init can do both. `read` copies the first PROP_VALUE_MAX
+# bytes of a file into a property, so this trigger turns `adb shell setprop
+# debug.dc1.regs <n>` (any new value; debug.* is shell-writable) into a live
+# view of both chips' driver state via `getprop`:
+#
+#   debug.dc1.regs.a / debug.dc1.regs.w   — `registers` dumps (2-003c / 5-003c)
+#   debug.dc1.bri.a  / debug.dc1.bri.w    — `i2c_brightness` (driver's value)
+#   debug.dc1.byp.a  / debug.dc1.byp.w    — hwcomposer_disabled_backlight_off_bypass
+#   debug.dc1.thr.a  / debug.dc1.thr.w    — can_not_see_backlight_brightness_threshold
+#
+# This makes the gate observable without eyes on the panel: if a brightness
+# write changes i2c_brightness/registers on one chip but not the other, the
+# gate (or the node mapping) is the difference. Reads have no driver side
+# effects (plain sysfs show handlers); a failed read just leaves the prop set
+# from the previous trigger fire.
+on property:debug.dc1.regs=*
+    read /sys/bus/i2c/devices/2-003c/registers debug.dc1.regs.a
+    read /sys/bus/i2c/devices/5-003c/registers debug.dc1.regs.w
+    read /sys/bus/i2c/devices/2-003c/i2c_brightness debug.dc1.bri.a
+    read /sys/bus/i2c/devices/5-003c/i2c_brightness debug.dc1.bri.w
+    read /sys/bus/i2c/devices/2-003c/hwcomposer_disabled_backlight_off_bypass debug.dc1.byp.a
+    read /sys/bus/i2c/devices/5-003c/hwcomposer_disabled_backlight_off_bypass debug.dc1.byp.w
+    read /sys/bus/i2c/devices/2-003c/can_not_see_backlight_brightness_threshold debug.dc1.thr.a
+    read /sys/bus/i2c/devices/5-003c/can_not_see_backlight_brightness_threshold debug.dc1.thr.w
