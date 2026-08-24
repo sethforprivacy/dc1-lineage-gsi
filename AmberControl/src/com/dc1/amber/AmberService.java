@@ -189,6 +189,8 @@ public final class AmberService extends Service {
                 }
             }
         };
+        cr.registerContentObserver(
+                Settings.System.getUriFor(WHITE_SETTING), false, mWhiteObserver);
 
         // Channel plumbing is re-read per mirror anyway; observing the keys
         // makes a live experiment a single `settings put` rather than a put
