@@ -543,10 +543,18 @@ public final class AmberService extends Service {
         // the service's handler thread, so the two nodes can never land out
         // of order relative to each other (the kernel driver serialises per
         // node anyway; this keeps whole mirror passes ordered too).
+        //
+        // A sysfs 0 does NOT turn the RT4539 off: it fades the chip to the
+        // can-not-see threshold (hw 1060 — a visible glow) and nothing ever
+        // disables it, so the string stays lit (verified live: "Off > Full"
+        // left a mix until the slider moved). sysfs 1 is the driver's real
+        // "off" — the vendor HAL writes white=1 for exactly this reason:
+        // values 1..16 fade the chip to i2c 0 and arm the off-timer that
+        // disables the chip for real. Map the model's off to the driver's.
         sAmberNode = amberNode;
-        sAmberValue = amberValue;
+        sAmberValue = amberValue == 0 ? 1 : amberValue;
         if (amberValue >= 0) {
-            led.write(amberValue);
+            led.write(sAmberValue);
         }
     }
 
@@ -638,7 +646,11 @@ public final class AmberService extends Service {
         }
         int share = crossfadeWhite(clampWhite(lampTotal), warmth, 0);
         int scaled = (int) Math.round((double) share / WHITE_MAX * max);
-        final int value = Math.max(0, Math.min(max, scaled));
+        // Map the model's off (0) to the driver's real off (sysfs 1): a 0
+        // write only fades the chip to the can-not-see threshold and leaves
+        // it glowing (see mirrorSetting's note); 1..16 fade to i2c 0 and arm
+        // the off-timer that disables the chip for real.
+        final int value = scaled <= 0 ? 1 : Math.min(max, scaled);
         sWhiteNode = node;
         sWhiteValue = value;
         if (!AmberLed.writeFile(node, String.valueOf(value))) {

@@ -150,6 +150,13 @@ stock candlelight look, owner-verified). In brightness mode the floor is
 `ro.dc1.amber.white_floor` (10): a dead amber node must not mean a dark panel.
 Unparseable values fall back to the defaults with a warning.
 
+One driver quirk matters at the extremes: **sysfs 0 is not the RT4539's off**.
+Writing 0 to an enabled chip only fades it to the can-not-see threshold
+(hw 1060 — a visible ~26% glow) and never disables it; writing **1** fades to
+i2c 0 and arms the off-timer that disables the chip for real. (This is why the
+vendor HAL's "off" is white=1.) AmberControl maps a computed 0 to a sysfs 1 in
+node mode, so both ends of the slider are truly one color.
+
 Every mirror logs one line with the resolved config and both channel values:
 
 ```
