@@ -26,7 +26,13 @@ BACKUP="$DIR/.papermode_backup"
 
 # --- settings helpers --------------------------------------------------------
 sget() { $ADB shell settings get "$1" "$2" 2>/dev/null | tr -d '\r'; }
-sput() { $ADB shell settings put "$1" "$2" "$3"; }
+# The adb client joins argv with spaces and passes the line to the device
+# shell unescaped (AOSP b/20564385, same as ssh). Single-quote-escape so a
+# value stays ONE settings argument on the device side — otherwise a device
+# settings value (any WRITE_SETTINGS app can poison it) could run as the adb
+# shell uid. `sq` only ever sees validated values, this is defense in depth.
+sq() { local v="$1"; v="${v//\'/\'\\\'\'}"; printf "'%s'\n" "$v"; }
+sput() { $ADB shell settings put "$1" "$2" $(sq "$3"); }
 sdel() { $ADB shell settings delete "$1" "$2" >/dev/null 2>&1 || true; }
 
 require_device() {
@@ -39,11 +45,14 @@ require_device() {
 backup_once() {
   # Only capture originals the first time we turn paper mode on.
   [ -f "$BACKUP" ] && return 0
+  # Stored as `namespace key value` tuples, NOT shell source: the values come
+  # from the device settings DB, which any WRITE_SETTINGS app can poison with
+  # shell metacharacters. We never source this file (see off()).
   {
-    echo "DALT_EN=$(sget secure accessibility_display_daltonizer_enabled)"
-    echo "DALT_MODE=$(sget secure accessibility_display_daltonizer)"
-    echo "MINRR=$(sget system min_refresh_rate)"
-    echo "PEAKRR=$(sget system peak_refresh_rate)"
+    echo "secure accessibility_display_daltonizer_enabled $(sget secure accessibility_display_daltonizer_enabled)"
+    echo "secure accessibility_display_daltonizer $(sget secure accessibility_display_daltonizer)"
+    echo "system min_refresh_rate $(sget system min_refresh_rate)"
+    echo "system peak_refresh_rate $(sget system peak_refresh_rate)"
   } > "$BACKUP"
   echo "Saved originals to $BACKUP"
 }
@@ -97,12 +106,25 @@ off() {
     sdel system peak_refresh_rate
     return 0
   fi
-  # shellcheck disable=SC1090
-  . "$BACKUP"
-  restore_secure accessibility_display_daltonizer_enabled "$DALT_EN"
-  restore_secure accessibility_display_daltonizer "$DALT_MODE"
-  restore_system min_refresh_rate "$MINRR"
-  restore_system peak_refresh_rate "$PEAKRR"
+  # Parse the tuple records; never source device-controlled data as shell,
+  # and restore ONLY the keys this script captured, with validated values —
+  # the backup can carry attacker-planted lines (an embedded newline in a
+  # captured setting splits into extra records) that must not reach adb.
+  while read -r ns key val; do
+    [ -z "$ns" ] && continue
+    case "$ns:$key" in
+      secure:accessibility_display_daltonizer_enabled|secure:accessibility_display_daltonizer|system:min_refresh_rate|system:peak_refresh_rate) ;;
+      *) echo "skipping unlisted backup entry: $ns $key" >&2; continue ;;
+    esac
+    case "$val" in
+      null) ;;   # legit "never set" marker; restore_* deletes the key
+      -*|*[!0-9.]*) echo "skipping non-numeric value for $key; run off again after fixing the device setting" >&2; continue ;;
+    esac
+    case "$ns" in
+      secure) restore_secure "$key" "$val" ;;
+      system) restore_system "$key" "$val" ;;
+    esac
+  done < "$BACKUP"
   rm -f "$BACKUP"
   echo "paper mode OFF (originals restored)"
 }
