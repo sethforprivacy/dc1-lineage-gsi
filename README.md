@@ -19,8 +19,10 @@ opens an Issue so the image can be rebuilt and uploaded.
   exactly the device class (MediaTek MSSI) TrebleDroid targets.
 - **Unrooted:** built as `treble_arm64_bvN` — no `su`, no admins.
 - **Play Services:** pure image; flash MindTheGapps separately after the GSI
-  (see `docs/flash.md`). Play Store and most apps work; Play Protect shows
-  "uncertified", as on any non-Google build.
+  (see `docs/flash.md`). Play Protect shows "uncertified", as on any
+  non-Google build — register the device (GSF ID, official Google path) to
+  restore Play Store installs/updates under the 2026 enforcement; see
+  `docs/play-certification.md`.
 
 Full rationale: [`docs/rom-choice.md`](docs/rom-choice.md).
 

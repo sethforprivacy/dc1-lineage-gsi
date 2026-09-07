@@ -76,8 +76,10 @@ un-sparses `system.img`, merges the GApps APKs/libs into the image, and
 re-sparses — one artifact, flashed with the same `fastboot flash system`.
 
 > Play Services caveat: Play Protect shows *uncertified* on this device (any
-> non-Google build). Play Store and nearly all apps work; strictest
-> Play-Integrity-only apps may refuse. See docs/rom-choice.md.
+> non-Google build), and since the 2026 enforcement that blocks Play Store
+> app installs/updates until the device is registered. Fix + full write-up:
+> [`docs/play-certification.md`](play-certification.md). Play-Integrity-only
+> apps (banking/Wallet) may still refuse; see docs/rom-choice.md.
 
 ## Get back to stock
 
