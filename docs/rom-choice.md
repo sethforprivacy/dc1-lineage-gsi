@@ -31,10 +31,15 @@ Decision made 2026-08-19 against these requirements:
 ### Known trade-off
 
 Play Protect shows the device as **uncertified** (true of every non-Google
-ROM; Google re-certifies only their own GSI). Play Store, banking, and the
-vast majority of apps work; apps with strict Play Integrity *hardware*
-checks (e.g. Google Wallet contactless) may refuse. If that is unacceptable,
-the alternative is the Google official GSI — see below.
+ROM; Google certifies only their own builds/GSI). Since the 2026 enforcement
+this is no longer cosmetic — Play Store refuses app installs/updates until
+the device is registered with Google. The **official** registration path
+(GSF ID → `google.com/android/uncertified`) is quick and restores Play Store
+functionality — see [`docs/play-certification.md`](play-certification.md).
+Apps with strict Play Integrity *hardware* checks (e.g. Google Wallet
+contactless) may still refuse even after registration. If Play certification
+is a hard requirement, the alternative is the Google official GSI — see
+below.
 
 ## Alternatives considered and why not chosen
 
