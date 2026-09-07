@@ -15,9 +15,13 @@ Two independent layers — don't confuse them:
 - **Play Protect device certification** — decides whether the Play Store lets
   you install/update apps at all. *This* is what we can fix (see below).
 - **Play Integrity** — per-app attestation (Basic / Device / Strong) used by
-  banking, Wallet, etc. Registration does **not** fix Play Integrity; the
-  hardware-backed Strong verdict can never pass on an unlocked, non-Google
-  GSI, by design. Apps that only need Basic/Device may still work.
+  banking, Wallet, etc. Registration does **not** fix Play Integrity. On a
+  typical unlocked device the Strong verdict can never pass (hardware-backed
+  proof of a certified manufacturer image), but the DC-1 may not be typical:
+  an independent install reports its LK claims `verifiedbootstate=green` and
+  `flash.locked=1` **even with the bootloader unlocked**, so the usual
+  integrity-killer is absent (repo issue #4). Expect per-app variance and
+  measure rather than assume.
 
 ## Who has to do this, and why it can't be baked into the ROM
 
@@ -40,8 +44,8 @@ hardware, and there is no ROM-side way to pre-do it:
   `android.com/certified`, Play Integrity docs, and AlexAltea's June 2026
   DMA complaint, which makes exactly this "no FRAND path" argument). And
   since Android 13, Play Integrity *device* verdicts require hardware-backed
-  proof of a "certified device manufacturer image" — so app-level Integrity
-  can never pass on a third-party GSI no matter what we do.
+  proof of a "certified device manufacturer image" — the usual outcome for
+  third-party GSIs, subject to the DC-1 caveat above.
 - Fingerprint spoofing used to flip the "Certified" label for some builds,
   but it's unreliable in 2026 (the checks moved to hardware attestation on
   Android 13+) and it's a ToS gray area — treating the device as another
@@ -61,30 +65,46 @@ ROM, register this device"* → `g.co/AndroidDeviceRegistration` →
 
 ### 1. Get the GSF ID (16 hex digits, "Google Services Framework ID")
 
-Try in order:
+The ID now lives in Google Play Services' own check-in database
+(`com.google.android.gms/databases/gservices.db`, row `android_id`), and
+`GServicesProvider` **filters that key from non-Google callers** on current
+GMS — verified on GMS 26.32.34: an app holding `READ_GSERVICES` queries the
+provider fine (other keys come back) but gets an empty value for
+`android_id`; every off-the-shelf "Device ID" app fails the same way
+(repo issue #4).
 
-1. **Device-ID app** — e.g. "Device ID" (`com.redphx.deviceid`) or "My Device
-   IDs: GSF GAID viewer" (`com.github.kolacbb.ids`); look for the **GSF ID /
-   Google Services Framework** field. Caveat: newer GMS restricts apps from
-   reading it (GrapheneOS tracker #4574) — if the field is blank, use next.
-2. **ADB** (user build, no root needed):
+Extraction routes, best first:
+
+1. **ADB content query** (try first; may also be filtered on newer GMS — an
+   empty result means "filtered", not "absent"):
    ```
    adb shell content query --uri content://com.google.android.gsf.gservices --where "name='android_id'" --projection value
    ```
-   If rejected on Android 16, use route 3.
-3. **One-off userdebug build** (we control the build, so this is deterministic):
-   - `./tools/build-release.sh --userdebug` then `fastboot flash system system.img`
-     **without wiping /data** (the current Play Store setup stays →
-     same GSF ID).
-   - `adb root` then read the framework DB:
+2. **Device-ID apps** (`com.redphx.deviceid` and friends): **dead on GMS
+   26.x** for the reason above; only worth trying on older GMS builds.
+3. **One-off userdebug build** — deterministic in principle, with a device
+   caveat: `adb root` was observed crash-looping on this vendor's policy on
+   an independent install (`adbd` re-spawns uid 0 but stays in the `adbd`
+   SELinux domain — repo issue #4 §7). If `adb root` won't survive on the
+   DC-1, this route is out.
+   - `./tools/build-release.sh --userdebug`, then `fastboot flash system
+     system.img` **without wiping /data** (Play Store setup and GSF ID stay).
+   - Read the ID:
      ```
-     adb pull /data/data/com.google.android.gsf/databases/gservices.db
-     sqlite3 gservices.db "select * from main where name='android_id';"
+     adb pull /data/data/com.google.android.gms/databases/gservices.db
+     sqlite3 gservices.db "select value from main where name='android_id';"
      ```
-     (`sqlite3` binary usually isn't on the device; pull and read on the host.)
-   - Note the ID, flash the normal `user` release back. The GSF ID lives in
-     `/data` (`/data/data/com.google.android.gsf`), so it survives the swap;
-     the registration stays valid.
+     (`sqlite3` usually isn't on the device; pull and read on the host. If
+     the GMS database is absent, try the legacy
+     `com.google.android.gsf/databases/gservices.db` path.)
+   - Flash the normal `user` release back — the ID lives in `/data`, so it
+     survives the swap and the registration stays valid.
+4. **In-ROM helper app** (planned, not shipped): a platform-signed app in the
+   image with `sharedUserId=android.uid.system` — same pipeline as
+   `AmberControl` — querying `GServicesProvider` as a trusted system caller
+   should return the real ID and can show it next to a registration
+   deep-link. That removes the extraction friction entirely; tracked from
+   repo issue #4 §1.
 
 The ID may show a `0x` prefix and/or uppercase — submit the bare 16 hex
 digits (strip `0x`, keep lowercase).
@@ -94,7 +114,9 @@ digits (strip `0x`, keep lowercase).
 1. Open `https://www.google.com/android/uncertified/` in any browser.
 2. Sign in with the **same Google account** that's on the DC-1.
 3. Paste the GSF ID, solve the reCAPTCHA, press **Register**.
-4. Wait 10–30 minutes (sometimes longer).
+4. Wait — propagation runs from minutes to **hours** (an independent DC-1
+   install measured ~3 h before the block lifted; repo issue #4). Don't
+   panic-refresh: the verdict is cached and re-fetched on its own schedule.
 
 ### 3. Apply
 
@@ -106,14 +128,32 @@ adb shell pm clear com.android.vending
 adb shell pm clear com.google.android.gms
 ```
 
-then remove/re-add the Google account if needed and reboot.
+Clearing GMS (Play services) is safe — verified it does **not** mint a new
+GSF ID (the ID survived `pm clear` + reboot, repo issue #4) — it just drops
+stale state so the next check-in picks up the registration. Then reboot.
 
 ### 4. Verify
 
-Play Store → profile icon → Settings → About → **Play Protect certification**.
-Reports differ on whether the label flips to "Certified"; the practical test is
-functional — install and update an app. Per current reports that works once the
-registration lands.
+Do **not** trust a single signal — several plausible-looking ones are false
+passes (measured in repo issue #4):
+
+- Play Store reaching its main activity, "no errors in logcat", or the
+  certification label flipping are all unreliable — the store races GMS on
+  restart, and the label can lag for hours after the server-side state
+  actually changed.
+- The working test is **behavioural**, screen awake and unlocked, cold app
+  launch: certified **Gmail** goes straight to the inbox; uncertified gets
+  bounced through a `gmscompliance` interstitial (visible in logcat as
+  `Displayed .*gmscompliance`). Play Store behaves the same but is noisier
+  to read.
+- The verdict is cached at
+  `…/com.google.android.gms/files/gmscompliance/shared/cache.pb`
+  (Tink-signed). Deleting that file forces a fresh server fetch without
+  signing anyone out — the cleanest way to tell "propagating" from "stale
+  cache".
+- The label in Play Store → Settings → About may legitimately keep saying
+  **uncertified** while installs/updates already work. The functional test —
+  actually install and update an app — is the one that matters.
 
 ## If Google rejects the registration
 
@@ -135,6 +175,11 @@ options, in order of cost to this project's constraints:
 
 ## Sources
 
+- **This repo, issue #4** — independent install, 2026-08-31: registration
+  confirmed working since 2026-08-25; `android_id` provider filtering on
+  GMS 26.32.34; `pm clear` behavior; verification traps; gmscompliance
+  cache; DC-1 verified-boot anomaly; `adb root` breakage. Issue #3 is the
+  corresponding user report of the block.
 - Google support: "Check & fix Play Protect certification status" (7165974 / 10248227)
 - `google.com/android/uncertified/warningauto` — custom-ROM registration path
 - K3V1991/Fix-This-Device-isnt-Play-Protect-certified (registration workflow)
