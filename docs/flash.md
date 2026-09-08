@@ -36,9 +36,10 @@ DC-1 community (daylighthacker.wiki) — the flow below is the standard one.
 ```bash
 # 0) On the device: Developer options → OEM unlocking.
 
-# 1) Boot into the bootloader, unlock
+# 1) Boot into the bootloader, unlock (see the note below — there is no
+#    on-screen prompt; the confirmation is a blind volume-up press)
 adb reboot bootloader
-fastboot flashing unlock            # confirm on screen; wipes data
+fastboot flashing unlock            # wipes data
 
 # 2) Boot fastbootd (userspace fastboot for dynamic partitions)
 fastboot reboot fastboot
@@ -48,6 +49,23 @@ fastboot --disable-verity --disable-verification flash vbmeta vbmeta.img
 fastboot flash system system.img
 fastboot reboot
 ```
+
+> **The bootloader draws no UI — confirm the unlock blind.** `=> FASTBOOT
+> mode...` is the entire display; the unlock prompt other devices show is
+> never drawn on the rLCD. `fastboot flashing unlock` returns `OKAY` after
+> **~5.017 s whether or not it worked** — that five seconds is a silent
+> confirmation window polling for **volume-up**. What works is sending the
+> command in a loop while tapping volume-up:
+>
+> ```bash
+> for i in $(seq 10); do fastboot flashing unlock; done   # tap volume-up throughout
+> ```
+>
+> It landed on attempt 2 here, identifiable because the accepted call
+> **returns in ~0.3 s instead of ~5 s** — that timing is the only feedback
+> you get. Confirm with `fastboot get_unlock_ability`. Nothing else exists on
+> this bootloader: `fastboot oem <anything>` returns `unknown command`, and
+> only `flashing unlock` and `get_unlock_ability` are implemented.
 
 Expected result: LineageOS 23.2 boots, unrooted, amber on by default at full
 (`screen_brightness_amber_rate=1023`), Play Services absent until Phase 2.
