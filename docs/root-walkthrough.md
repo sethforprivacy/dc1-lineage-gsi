@@ -32,8 +32,13 @@ LED nodes), fall back to discovery.
 2. Connect adb, then:
    ```bash
    adb reboot bootloader
-   fastboot flashing unlock          # confirm on the screen
+   fastboot flashing unlock          # wipes data
    ```
+   There is **no on-screen prompt** — this bootloader renders no UI at all.
+   The command returns `OKAY` after ~5 s either way; that window is polling
+   for a blind **volume-up** press. Loop the command while tapping volume-up
+   and watch for the call that returns in ~0.3 s. See
+   [`docs/flash.md`](flash.md#phase-1--permanent-install-unlock--flash).
 3. This wipes /data and opens the device to custom images. Stock returns via
    the restore procedure in `docs/flash.md`.
 
