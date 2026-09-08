@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Carrier for the DeviceKeyHandler class only. No activities, no services, no
+  receivers: PhoneWindowManager loads com.dc1.keyhandler.KeyHandler out of
+  this APK with a PathClassLoader and runs it inside system_server, so nothing
+  here is ever started as an app.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.dc1.keyhandler"
+    android:versionCode="1"
+    android:versionName="1.0">
+
+    <application
+        android:label="DC1KeyHandler"
+        android:hasCode="true"
+        android:allowBackup="false" />
+</manifest>

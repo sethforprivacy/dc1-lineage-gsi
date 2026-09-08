@@ -49,6 +49,19 @@ MediaTek-flavored GSIs (TrebleDroid) behave well here.
   `ro.dc1.amber.node=/sys/class/leds/<node>/brightness` in the ROM; the app
   also auto-discovers the node on first boot.
 
+## Hardware buttons
+
+Besides power and volume the DC-1 has two buttons, both on `mtk-kpd`
+(`/dev/input/event1`), mapped by `/vendor/usr/keylayout/mtk-kpd.kl`:
+
+| button | scancode | keycode | stock behaviour |
+|---|---|---|---|
+| orange, side | 87 | `KEY_F11` (141) | a toast, "Walkie-Talkie assistant is coming soon!" — a stub for an unshipped feature |
+| top | 88 | `KEY_F12` (142) | launch Noteshelf 2, else Noteshelf 3, else "No note-taking app found" |
+
+Neither keycode has a default action in AOSP or LineageOS, so on a GSI both go
+inert unless something handles them: see [`docs/buttons.md`](buttons.md).
+
 ## Software stack (stock, for reference)
 
 | Package | Location | Role |

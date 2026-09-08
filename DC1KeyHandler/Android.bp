@@ -1,0 +1,32 @@
+// DC-1 hardware key handler.
+//
+// The DC-1 has two physical buttons (orange side, top) that emit KEY_F11 /
+// KEY_F12 on mtk-kpd. Neither keycode has a default action in AOSP or
+// LineageOS — on stock they worked only because Daylight's own system apps
+// listened for them, so on a GSI both go inert at the flash.
+//
+// Not an app in any user-visible sense: it ships no activity and is never
+// launched. LineageOS' PhoneWindowManager loads the class out of this APK
+// with a PathClassLoader, from the path in config_deviceKeyHandlerLibs (see
+// overlay-lineage/) — the same shape every LineageOS device tree uses for a
+// KeyHandler.
+android_app {
+    name: "DC1KeyHandler",
+    manifest: "AndroidManifest.xml",
+    srcs: ["src/**/*.java"],
+    certificate: "platform",
+    system_ext_specific: true,
+    // Hidden APIs: com.android.internal.os.DeviceKeyHandler (the interface
+    // PWM loads us as), android.util.Slog, android.os.SystemProperties, and
+    // the *ForUser Settings accessors — we run inside system_server.
+    platform_apis: true,
+    optimize: {
+        enabled: false,
+    },
+    dex_preopt: {
+        enabled: false,
+    },
+    lint: {
+        enabled: false,
+    },
+}

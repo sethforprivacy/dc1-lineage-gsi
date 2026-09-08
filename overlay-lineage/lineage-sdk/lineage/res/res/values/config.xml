@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Hand KEY_F11 / KEY_F12 (the DC-1's two physical buttons) to
+         DC1KeyHandler. Neither keycode has a default action in AOSP or
+         LineageOS, so without this both buttons are inert. See
+         docs/buttons.md. -->
+    <string-array name="config_deviceKeyHandlerLibs" translatable="false">
+        <item>/system_ext/app/DC1KeyHandler/DC1KeyHandler.apk</item>
+    </string-array>
+
+    <string-array name="config_deviceKeyHandlerClasses" translatable="false">
+        <item>com.dc1.keyhandler.KeyHandler</item>
+    </string-array>
+</resources>

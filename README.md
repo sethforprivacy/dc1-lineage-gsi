@@ -34,6 +34,7 @@ Full rationale: [`docs/rom-choice.md`](docs/rom-choice.md).
 | Amber frontlight | rootless system app: Quick-Settings tile + slider, mirrors `screen_brightness_amber_rate` → kernel LED (auto-discovers the node; override via `ro.dc1.amber.node`) | `AmberControl/` |
 | SELinux | lets the amber app (`platform_app` domain) read/write `sysfs_leds` under enforcing policy — TE allow plus `mlstrustedobject` on `sysfs_leds`, see [`docs/amber.md`](docs/amber.md) | `sepolicy/dc1amber.te` |
 | Priv-app permission | allows `WRITE_SETTINGS` to the amber app | `privapp-permissions-dc1.xml` |
+| Hardware buttons | `DeviceKeyHandler` restoring the two dead physical buttons: orange (`KEY_F11`) toggles the amber frontlight, top (`KEY_F12`) opens the Notes-role app — neither keycode has a default action in AOSP/LineageOS, see [`docs/buttons.md`](docs/buttons.md) | `DC1KeyHandler/`, `overlay-lineage/` |
 | Display/feature config | monochrome-panel + no-camera/no-light-sensor/no-telephony feature masks, forced grayscale + 1184x1584 size props, drops camera apps; setup wizard kept, its SIM step self-skips | `rro/`, `dc1-excluded-hardware.xml`, `common.mk` |
 | Repo manifest | adds `vendor/dc1` (this repo) to the build tree | `local_manifests/dc1.xml` |
 
@@ -47,6 +48,8 @@ in through `generate.sh vendor/dc1/common.mk`, plus the single small
 ```
 common.mk                  Product fragment (sycned into the tree as vendor/dc1/common.mk)
 AmberControl/              Rootless amber frontlight app (Java, platform-priv-app)
+DC1KeyHandler/             DeviceKeyHandler for the two physical buttons (F11/F12)
+overlay-lineage/           Build-time lineage-sdk overlay (registers the key handler)
 sepolicy/                  SELinux additions for the amber app (TE + MLS)
 privapp-permissions-dc1.xml
 dc1-excluded-hardware.xml  Masks camera + light-sensor features from stock /vendor
