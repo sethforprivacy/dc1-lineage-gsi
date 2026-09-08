@@ -55,6 +55,17 @@ SYSTEM_EXT_PRIVATE_SEPOLICY_DIRS += vendor/dc1/sepolicy
 PRODUCT_PACKAGES += \
     DC1Overlay
 
+# --- Hardware buttons: KEY_F11 (orange, side) + KEY_F12 (top) ---------------
+# Neither keycode has a default action in AOSP or LineageOS; on stock they
+# only worked because Daylight's own system apps listened for them, so on a
+# GSI both buttons are inert from the flash. DC1KeyHandler is loaded by
+# LineageOS' PhoneWindowManager through config_deviceKeyHandlerLibs, which the
+# lineage-sdk overlay below sets. See docs/buttons.md.
+PRODUCT_PACKAGES += \
+    DC1KeyHandler
+
+PRODUCT_PACKAGE_OVERLAYS += vendor/dc1/overlay-lineage
+
 # --- Mask camera + light-sensor features declared by the stock /vendor ------
 PRODUCT_COPY_FILES += \
     vendor/dc1/dc1-excluded-hardware.xml:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/permissions/dc1-excluded-hardware.xml
