@@ -3,9 +3,10 @@
 Two safe phases. Start with DSU (no unlock, no root, reversible) to sanity
 check the image; only then unlock and flash for permanence.
 
-> **Back up first.** A GSI flash replaces the system partition. The stock
-> image can be restored via Daylight's tooling / an OTA zip — have one at
-> hand before unlocking. See daylighthacker.wiki for stock assets.
+> **Back up first.** A GSI flash replaces the system partition. Daylight
+> publishes no firmware images, so pull the stock OTA zip **while the device
+> still boots stock** — see [`docs/stock-recovery.md`](stock-recovery.md).
+> daylighthacker.wiki also collects stock assets.
 
 ## Phase 0 — verify the image with DSU (recommended first step)
 
@@ -84,8 +85,14 @@ re-sparses — one artifact, flashed with the same `fastboot flash system`.
 ## Get back to stock
 
 Reboot to fastbootd and restore the stock `system` (and `vbmeta`) images you
-backed up in the beginning; or use Daylight's OTA tooling
-(adiktofsugar/daylight) to re-image the unit.
+backed up in the beginning.
+
+If you didn't back anything up: Daylight publishes no firmware, but its OTA
+server will hand any registered serial the full OTA zip, which unpacks to the
+images `fastboot` needs. Full procedure — plus the two routes that look
+obvious and fail on this device (`adb root` crash-loops `adbd` here; mtkclient
+is closed on this G99) — in
+[`docs/stock-recovery.md`](stock-recovery.md).
 
 ## Troubleshooting
 
