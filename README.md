@@ -97,7 +97,8 @@ beyond the small documented patches in `patches/`.
 
 None of this substitutes for your own judgement. It's an early release for a
 niche device — read the release notes, verify the checksums, and keep a copy
-of stock on hand.
+of stock on hand ([`docs/stock-recovery.md`](docs/stock-recovery.md) — pull it
+before you unlock).
 
 ## License
 
