@@ -24,6 +24,50 @@ daylighthacker.wiki GSI list points to it as the standard path).
 Bugs found at this stage are free — iterate on the delta (docs/amber.md) and
 rebuild without touching your stock setup.
 
+### DSU without the Sideloader app
+
+`gsi_tool` is on the device already and works straight from `adb shell` —
+**no root, no DSU Sideloader, no Shizuku**. If you'd rather not install an
+app to test-boot an image:
+
+```bash
+gzip -k system.img                          # a raw .img will NOT work — see below
+adb push system.img.gz /storage/emulated/0/Download/
+
+# hand the image to DSU directly. KEY_SYSTEM_SIZE is the UNCOMPRESSED size.
+adb shell am start-activity \
+  -n com.android.dynsystem/.VerificationActivity \
+  -a android.os.image.action.START_INSTALL \
+  -d file:///storage/emulated/0/Download/system.img.gz \
+  --el KEY_SYSTEM_SIZE $(stat -c%s system.img) \
+  --el KEY_USERDATA_SIZE 8589934592
+
+# have the tablet in hand: this puts a confirmation dialog on screen.
+# when the notification says the install finished:
+adb shell gsi_tool enable && adb reboot
+
+# back to stock:
+adb shell gsi_tool disable && adb reboot     # `gsi_tool wipe` drops the slot
+```
+
+Four things that cost time here:
+
+- **DSU dispatches on the file extension, not the contents.**
+  `InstallationAsyncTask.verifyAndPrepare()` accepts only `.gz` or `.zip`; a
+  raw `.img` throws `UnsupportedFormatException` no matter how valid it is.
+  Gzip it — and keep the declared system size the **uncompressed** byte count
+  (`KEY_SYSTEM_SIZE`), which is what `stat -c%s system.img` above gives you.
+- **The DSU gets its own empty userdata** (8 GB as sized above; the stock
+  ~100 GB partition is invisible from inside it). Fine for hardware
+  validation, not representative for storage testing.
+- **ADB access drops out twice** — after the unlock wipe, and again on the
+  first DSU boot. USB debugging has to be re-enabled from Developer options
+  each time; the DSU has its own fresh settings.
+- **`gsi_tool enable` persists across reboots.** DSU is reversible, but it is
+  not one-shot: every reboot lands back in the GSI until you run `gsi_tool
+  disable`. Worth knowing before you conclude a multi-day test (battery,
+  deep sleep) was measuring stock.
+
 ## Phase 1 — permanent install (unlock + flash)
 
 A custom GSI requires an **unlocked bootloader** (this unit ships locked:
