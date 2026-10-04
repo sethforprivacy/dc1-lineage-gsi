@@ -25,4 +25,8 @@
     <dimen name="waterfall_display_top_edge_size">8px</dimen>
     <dimen name="waterfall_display_right_edge_size">8px</dimen>
     <dimen name="waterfall_display_bottom_edge_size">8px</dimen>
+
+    <!-- Show "Notes app" under Default apps. The top hardware button opens
+         the app that holds this role (docs/buttons.md). -->
+    <bool name="config_enableDefaultNotes">true</bool>
 </resources>

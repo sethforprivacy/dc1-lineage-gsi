@@ -95,6 +95,21 @@ else
   echo ">> DC-1 include already present in product mk"
 fi
 
+# --- 4b. remaining DC-1 patches (<project-path>__NNNN-*.patch) ----------------
+for PX in "$ROOT"/patches/*__*.patch; do
+  [ -e "$PX" ] || continue
+  PROJ="$(basename "$PX")"; PROJ="${PROJ%%__*}"
+  [ "$PROJ" = "device_phh_treble" ] && continue
+  PDIR="$BUILD_DIR/${PROJ//_//}"
+  if git -C "$PDIR" apply --reverse --check "$PX" 2>/dev/null; then
+    echo ">> $(basename "$PX") already applied"
+  else
+    git -C "$PDIR" apply --whitespace=nowarn "$PX" \
+      || { echo "$(basename "$PX") failed to apply to $PROJ"; exit 1; }
+    echo ">> $(basename "$PX") applied"
+  fi
+done
+
 # --- 5. permissive strip (user builds forbid permissive domains) -----------
 STRIPPED=0
 for f in $(grep -rl "^[[:space:]]*permissive " \

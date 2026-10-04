@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">DC-1 buttons</string>
+    <string name="settings_title">DC-1 buttons</string>
+    <string name="settings_summary">Actions of the side and the top orange button</string>
+
+    <string name="side_short">Side orange button, short press</string>
+    <string name="side_long">Side orange button, long press</string>
+    <string name="top_short">Top orange button, short press</string>
+    <string name="top_long">Top orange button, long press</string>
+
+    <string name="action_none">Nothing</string>
+    <string name="action_assistant">Digital assistant</string>
+    <string name="action_frontlight">Frontlight off and on</string>
+    <string name="action_notes">Default notes app</string>
+    <string name="action_app">Open an app…</string>
+</resources>

@@ -104,6 +104,17 @@ public final class AmberService extends Service {
     /** Live selector for how the white half is driven; see {@link Config}. */
     static final String SETTING_WHITE_MODE = "dc1_white_mode";
 
+    /**
+     * Who drives the LEDs. With {@code ro.dc1.amber.driver=framework} the
+     * patched LightsService sends the rate to the vendor lights HAL and this
+     * app only owns the setting; the setting value {@code app} switches back
+     * to the direct node writes below, live.
+     */
+    static final String SETTING_DRIVER = "dc1_amber_driver";
+    private static final String PROP_DRIVER = "ro.dc1.amber.driver";
+    private static final String DRIVER_FRAMEWORK = "framework";
+    private static final String DRIVER_APP = "app";
+
     static final String WHITE_MODE_BRIGHTNESS = "brightness";
     static final String WHITE_MODE_OFF = "off";
     /** Bare "node": resolve the white node like the amber one (prop → standard name). */
@@ -258,6 +269,8 @@ public final class AmberService extends Service {
                 Settings.System.getUriFor(SETTING_AMBER_NODE), false, mConfigObserver);
         cr.registerContentObserver(
                 Settings.System.getUriFor(SETTING_WHITE_MODE), false, mConfigObserver);
+        cr.registerContentObserver(
+                Settings.System.getUriFor(SETTING_DRIVER), false, mConfigObserver);
 
         // Waking the display makes the framework re-apply its brightness to
         // the lights HAL, which rewrites both LED nodes with its own
@@ -544,6 +557,13 @@ public final class AmberService extends Service {
      * on-hardware channel-mapping experiments read.
      */
     static void mirrorSetting(Context context) {
+        if (frameworkDriven(context)) {
+            sAmberNode = null;
+            sAmberValue = -1;
+            sWhiteNode = null;
+            sWhiteValue = -1;
+            return;
+        }
         Config cfg = Config.resolve(context);
         if (cfg.whiteMode != Config.MODE_BRIGHTNESS) {
             // These modes never write screen_brightness, so a base captured by
@@ -595,6 +615,15 @@ public final class AmberService extends Service {
 
     private void mirrorSetting() {
         mirrorSetting(this);
+    }
+
+    /** @return true when the framework, not this app, drives the LED nodes. */
+    static boolean frameworkDriven(Context context) {
+        if (!DRIVER_FRAMEWORK.equals(SystemProperties.get(PROP_DRIVER))) {
+            return false;
+        }
+        String s = readSetting(context, SETTING_DRIVER);
+        return s == null || !DRIVER_APP.equals(s.trim());
     }
 
     // ── the white half of the crossfade ─────────────────────────────────

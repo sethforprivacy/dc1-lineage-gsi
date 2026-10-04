@@ -21,6 +21,7 @@ PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
     ro.dc1.amber.setting=screen_brightness_amber_rate \
     ro.dc1.amber.max=1023 \
     ro.dc1.amber.default=1023 \
+    ro.dc1.amber.driver=framework \
     ro.dc1.amber.node=
 
 # --- Amber frontlight control app (rootless, system_ext priv-app) -----------
@@ -54,6 +55,17 @@ SYSTEM_EXT_PRIVATE_SEPOLICY_DIRS += vendor/dc1/sepolicy
 # --- Config overlay + package removals (see rro/DC1Overlay/Android.bp) ------
 PRODUCT_PACKAGES += \
     DC1Overlay
+
+# --- Hardware buttons: KEY_F11 (side) + KEY_F12 (top) -----------------------
+# Neither keycode has a default action in AOSP or LineageOS; on stock they
+# only worked because Daylight's own system apps listened for them, so on a
+# GSI both buttons are inert from the flash. DC1KeyHandler is loaded by
+# LineageOS' PhoneWindowManager through config_deviceKeyHandlerLibs, which the
+# lineage-sdk overlay below sets. See docs/buttons.md.
+PRODUCT_PACKAGES += \
+    DC1KeyHandler
+
+PRODUCT_PACKAGE_OVERLAYS += vendor/dc1/overlay-lineage
 
 # --- Mask camera + light-sensor features declared by the stock /vendor ------
 PRODUCT_COPY_FILES += \
