@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tile dialog: warmth readout, the cool-warm slider, and the two ends. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:minWidth="520dp"
+    android:orientation="vertical"
+    android:background="@color/paper"
+    android:paddingStart="36dp"
+    android:paddingEnd="36dp"
+    android:paddingTop="32dp"
+    android:paddingBottom="28dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/readout_caption"
+            android:textAllCaps="true"
+            android:textColor="@color/ink_muted"
+            android:textSize="13sp"
+            android:letterSpacing="0.22" />
+
+        <TextView
+            android:id="@+id/readout"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/ink"
+            android:textSize="40sp"
+            android:fontFamily="sans-serif-light"
+            android:includeFontPadding="false" />
+    </LinearLayout>
+
+    <SeekBar
+        android:id="@+id/slider"
+        android:layout_width="match_parent"
+        android:layout_height="72dp"
+        android:layout_marginTop="16dp"
+        android:contentDescription="@string/slider_desc"
+        android:progressDrawable="@drawable/slider_track"
+        android:thumb="@drawable/slider_thumb"
+        android:thumbOffset="24dp"
+        android:paddingStart="24dp"
+        android:paddingEnd="24dp"
+        android:minHeight="6dp"
+        android:maxHeight="6dp"
+        android:splitTrack="false" />
+
+    <!-- baselineAligned stays false for the same reason as the preset row. -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:orientation="horizontal"
+        android:baselineAligned="false">
+
+        <include
+            android:id="@+id/preset_off"
+            layout="@layout/preset_chip" />
+
+        <include
+            android:id="@+id/preset_full"
+            layout="@layout/preset_chip" />
+    </LinearLayout>
+</LinearLayout>

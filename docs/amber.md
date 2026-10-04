@@ -28,7 +28,7 @@ the `AmberControl` app once — the value persists in the setting.
 ```
 ┌─────────────────────────── platform_app domain (rootless) ──────────────────────────┐
 │ AmberControl (platform-priv-app, system_ext/priv-app)                               │
-│  • QS tile "Amber"             – toggle on (default value) / off                    │
+│  • QS tile "Amber"             – tap: slider dialog (Off / Full); long-press: app   │
 │  • Cool↔warm slider + presets  – 0..1023, saved in-app                  │
 │  • AmberService                – mirrors the rate: writes BOTH LED nodes (amber +  │
 │                                   white, see "How the frontlight actually works")  │
