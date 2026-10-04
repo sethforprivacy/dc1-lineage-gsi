@@ -139,6 +139,19 @@ if compgen -G "$ROOT/patches/vendor_lineage__*.patch" >/dev/null; then
       && git reset --quiet --hard FETCH_HEAD )
 fi
 
+# frameworks/base: blobless sparse clone, only the directories the patches edit
+FBASE="$WORK/frameworks_base"
+if compgen -G "$ROOT/patches/frameworks_base__*.patch" >/dev/null; then
+  if [ ! -d "$FBASE/.git" ]; then
+    git clone --quiet --depth 1 --filter=blob:none --sparse -b lineage-23.2 \
+      https://github.com/LineageOS/android_frameworks_base "$FBASE"
+  fi
+  ( cd "$FBASE" && git fetch --quiet --depth 1 origin lineage-23.2 \
+      && git reset --quiet --hard FETCH_HEAD \
+      && git sparse-checkout set $(grep -h '^--- a/' "$ROOT"/patches/frameworks_base__*.patch \
+           | sed 's|^--- a/||; s|/[^/]*$||' | sort -u) )
+fi
+
 applied=0
 for p in "$ROOT"/patches/*.patch; do
   [ -e "$p" ] || continue
@@ -146,6 +159,7 @@ for p in "$ROOT"/patches/*.patch; do
   case "$proj" in
     device_phh_treble) clone="$PHH_LOS" ;;
     vendor_lineage) clone="$VLINEAGE" ;;
+    frameworks_base) clone="$FBASE" ;;
     *) fail "patch $p names unknown project $proj (see patches/README.md)" ;;
   esac
   git -C "$clone" apply --check "$p" || fail "patch $p no longer applies to $proj HEAD"

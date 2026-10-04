@@ -21,6 +21,7 @@ PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
     ro.dc1.amber.setting=screen_brightness_amber_rate \
     ro.dc1.amber.max=1023 \
     ro.dc1.amber.default=1023 \
+    ro.dc1.amber.driver=framework \
     ro.dc1.amber.node=
 
 # --- Amber frontlight control app (rootless, system_ext priv-app) -----------

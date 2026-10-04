@@ -32,6 +32,8 @@ Full rationale: [`docs/rom-choice.md`](docs/rom-choice.md).
 |---|---|---|
 | Product fragment | inherits `vendor/lineage/config/common_full_phone.mk`, adds our packages/sepolicy/props | `common.mk` |
 | Amber frontlight | rootless system app: Quick-Settings tile + slider, mirrors `screen_brightness_amber_rate` → kernel LED (auto-discovers the node; override via `ro.dc1.amber.node`) | `AmberControl/` |
+| Amber slider in the panel | SystemUI patch: warmth slider under the brightness slider in the Quick-Settings panel; writes `screen_brightness_amber_rate` only | `patches/frameworks_base__0001-dc1-amber-slider-in-qs.patch` |
+| Amber mix through the lights HAL | `LightsService` patch: the framework sends the amber rate to the vendor lights HAL, so there is a single writer of the LED nodes | `patches/frameworks_base__0002-dc1-amber-rate-as-backlight-alpha.patch` |
 | SELinux | lets the amber app (`platform_app` domain) read/write `sysfs_leds` under enforcing policy — TE allow plus `mlstrustedobject` on `sysfs_leds`, see [`docs/amber.md`](docs/amber.md) | `sepolicy/dc1amber.te` |
 | Priv-app permission | allows `WRITE_SETTINGS` to the amber app | `privapp-permissions-dc1.xml` |
 | Display/feature config | monochrome-panel + no-camera/no-light-sensor/no-telephony feature masks, forced grayscale + 1184x1584 size props, drops camera apps; setup wizard kept, its SIM step self-skips | `rro/`, `dc1-excluded-hardware.xml`, `common.mk` |

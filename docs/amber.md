@@ -90,6 +90,44 @@ The rules land in `system_ext_sepolicy.cil` via
 assertions are off in this GSI (`device/phh/treble/base.mk` sets
 `SELINUX_IGNORE_NEVERALLOWS := true`), so the attribute change builds.
 
+## Who drives the LEDs
+
+The vendor lights HAL (`android.hardware.lights-service.mediatek`, MediaTek's
+liblights with Daylight's amber addition) takes the mix from the alpha byte of
+the backlight color it receives from the framework:
+
+```
+white = brightness * (255 - alpha) / 255     (at least 1 while brightness > 0)
+amber = brightness - white                   (at least 1 while brightness > 0)
+```
+
+It has no other input: the binary imports no property or file-read functions.
+Stock AOSP always sends alpha `0xff`, which is why an unpatched framework
+lights amber only.
+
+| `ro.dc1.amber.driver` | `dc1_amber_driver` setting | Who writes the LED nodes |
+|---|---|---|
+| `framework` (set in `common.mk`) | unset | The HAL. `patches/frameworks_base__0002-*` makes `LightsService` send `screen_brightness_amber_rate` as the alpha byte and re-send it when the setting changes. AmberControl only owns the setting and its UI |
+| `framework` | `app` | AmberControl, as described in the sections below. Live switch for comparison: `adb shell settings put system dc1_amber_driver app` |
+| unset | any | AmberControl |
+
+### Full amber after wake-up
+
+With an unpatched framework the light went to 100% amber after each wake-up
+and came back to the set mix a moment later. The cause is the alpha byte: on
+wake-up the framework applies the brightness again, about 0.3 s after
+`ACTION_SCREEN_ON`, and with alpha `0xff` the HAL writes `white=1,
+amber=B-1`. With the `app` driver AmberControl can only repair that write
+afterwards; its watchdog runs every 2 s, so the wrong mix stayed for 0.1 to
+2 s.
+
+With the `framework` driver the wake-up write itself carries the amber rate,
+so there is nothing to repair. Verified on hardware (2026-10-04, rate 512,
+brightness 255): one HAL write after wake-up, `white=127` / `amber=128`, and
+no AmberControl activity.
+
+The sections below describe the `app` driver.
+
 ## How the frontlight actually works (verified on hardware)
 
 Mapped live on the device, 2026-08-24, with the kernel log as the instrument
@@ -102,15 +140,16 @@ brightness transition):
 | Two frontlight chips, both Richtek **RT4539** (GPL driver `leds-rt4539.c` in Daylight's kernel drop) | `/sys/bus/i2c/devices/{2,5}-003c/driver -> rt4539`; DTS `bl_amb`/`bl_wht` nodes, enable GPIOs 99/98 |
 | Amber string = `lcd-backlight-amber` (i2c `2-003c`); white string = `lcd-backlight` (i2c `5-003c`) | kernel log during the mapping experiments; DTS labels |
 | Both strings are physically alive | `rt4539_enable: off-to-on` + `i2c_brightness_set: 0->…` on **both** nodes when driven directly; owner saw white and amber |
-| The framework brightness pipeline goes through the **vendor lights HAL**, which writes BOTH nodes on every change with a fixed split: `white=1, amber=B-1` | HAL log lines `set_light_backlight: white=1 (brightness N)` / `amber=N-1` on every brightness ramp step |
+| The framework brightness pipeline goes through the **vendor lights HAL**, which writes BOTH nodes on every change. The split comes from the alpha byte of the color; with the alpha `0xff` that AOSP sends it is `white=1, amber=B-1` | HAL log lines `set_light_backlight: white=1 (brightness N)` / `amber=N-1` on every brightness ramp step |
 | Why white never lit via the framework: sysfs 1 → hw level 16 = exactly the driver's on-threshold (`hw-brightness-on-threshold = <16>`, "hw brightness 1-16 ⇒ screen on backlight off") | kernel log `rt4539_disable: screen on backlight off` after every HAL white=1 write |
 | The old "amber writes are a physical no-op" observation is fully explained: the app's node writes DID reach the chip — the HAL then overwrote both nodes milliseconds later during the brightness ramp | live kernel log: app write `209->3212` then HAL ramp writes over it |
 | The driver's HWC gate exists but only bites at display-off/doze; the `hwcomposer_disabled_backlight_off_bypass=1` init write makes it a no-op (`rt4539_brightness_force_off: bypassed`) | kernel log at screen-off after the v8 build |
 
-The HAL's ratio input is not public (closed-source Daylight binary) and not
-driven by any framework-visible setting (night display / LiveDisplay don't
-touch it). So the mix is driven **directly**: AmberControl writes both LED
-nodes itself, and `screen_brightness` is only the lamp total B.
+The HAL's only ratio input is the alpha byte described in "Who drives the
+LEDs". It is easy to miss: no setting, property or file feeds the HAL, and the
+alpha of a backlight color normally carries no meaning. In the `app` driver
+that input is not used; the mix is driven **directly**: AmberControl writes
+both LED nodes itself, and `screen_brightness` is only the lamp total B.
 
 ### The fight, and how it's won
 

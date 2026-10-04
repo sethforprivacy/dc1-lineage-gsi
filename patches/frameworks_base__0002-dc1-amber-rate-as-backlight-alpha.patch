@@ -1,0 +1,63 @@
+diff --git a/services/core/java/com/android/server/lights/LightsService.java b/services/core/java/com/android/server/lights/LightsService.java
+index 58a8941..df685d2 100644
+--- a/services/core/java/com/android/server/lights/LightsService.java
++++ b/services/core/java/com/android/server/lights/LightsService.java
+@@ -381,3 +381,3 @@ public class LightsService extends SystemService {
+                 int color = brightnessInt & 0x000000ff;
+-                color = 0xff000000 | (color << 16) | (color << 8) | color;
++                color = (mDc1AmberAlpha << 24) | (color << 16) | (color << 8) | color;
+                 setLightLocked(color, LIGHT_FLASH_NONE, 0, 0, brightnessMode);
+@@ -630,2 +630,53 @@ public class LightsService extends SystemService {
+     public void onBootPhase(int phase) {
++        if (phase == PHASE_SYSTEM_SERVICES_READY && DC1_AMBER_BY_FRAMEWORK) {
++            android.database.ContentObserver observer =
++                    new android.database.ContentObserver(mH) {
++                        @Override
++                        public void onChange(boolean selfChange) {
++                            updateDc1AmberAlpha();
++                        }
++                    };
++            android.content.ContentResolver cr = getContext().getContentResolver();
++            cr.registerContentObserver(Settings.System.getUriFor(DC1_AMBER_RATE), false,
++                    observer, android.os.UserHandle.USER_ALL);
++            cr.registerContentObserver(Settings.System.getUriFor(DC1_AMBER_DRIVER), false,
++                    observer, android.os.UserHandle.USER_ALL);
++            updateDc1AmberAlpha();
++        }
++    }
++
++    // DC-1: the vendor lights HAL splits the backlight between its white and amber LED strings
++    // by the alpha byte of the color: white = brightness * (255 - alpha) / 255, amber = the rest.
++    private static final String DC1_AMBER_RATE = "screen_brightness_amber_rate";
++    private static final String DC1_AMBER_DRIVER = "dc1_amber_driver";
++    private static final int DC1_AMBER_MAX = 1023;
++    private static final boolean DC1_AMBER_BY_FRAMEWORK =
++            "framework".equals(android.os.SystemProperties.get("ro.dc1.amber.driver"));
++
++    private volatile int mDc1AmberAlpha = 0xff;
++
++    private void updateDc1AmberAlpha() {
++        android.content.ContentResolver cr = getContext().getContentResolver();
++        int alpha = 0xff;
++        String driver = Settings.System.getStringForUser(cr, DC1_AMBER_DRIVER,
++                android.os.UserHandle.USER_SYSTEM);
++        if (!"app".equals(driver)) {
++            int rate = Settings.System.getIntForUser(cr, DC1_AMBER_RATE, DC1_AMBER_MAX,
++                    android.os.UserHandle.USER_SYSTEM);
++            rate = Math.max(0, Math.min(DC1_AMBER_MAX, rate));
++            alpha = Math.round(rate * 255f / DC1_AMBER_MAX);
++        }
++        mDc1AmberAlpha = alpha;
++
++        LightImpl backlight = mLightsByType[LightsManager.LIGHT_ID_BACKLIGHT];
++        if (backlight == null) {
++            return;
++        }
++        synchronized (backlight) {
++            int gray = backlight.mColor & 0x00ffffff;
++            if (backlight.mInitialized && gray != 0) {
++                backlight.setLightLocked((alpha << 24) | gray, backlight.mMode,
++                        backlight.mOnMS, backlight.mOffMS, backlight.mBrightnessMode);
++            }
++        }
+     }
