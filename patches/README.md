@@ -17,8 +17,14 @@ Patch files are named `<project-path-underscores>__<NNNN>-description.patch`
 runner and CI apply every `*.patch` in this directory after the upstream
 patch layers, mapping `<project-path>` back to tree paths.
 
-Current contents: `device_phh_treble__0001-dc1-include-vendor-dc1.patch`
-(appends our `vendor/dc1/common.mk` inherit to `lineage_arm64_bvN4.mk`).
+Current contents:
+
+- `device_phh_treble__0001-dc1-include-vendor-dc1.patch`: appends our
+  `vendor/dc1/common.mk` inherit to `lineage_arm64_bvN4.mk`.
+- `frameworks_base__0003-dc1-bootanimation-inset-min-step.patch`: the boot
+  animation moves its inset crop by at least 1 px per frame. With the 8 px
+  bezel inset that `DisplayManagerService` persists after the first boot, the
+  step rounded down to 0 and the animation never ended.
 
 ## Adding a patch
 

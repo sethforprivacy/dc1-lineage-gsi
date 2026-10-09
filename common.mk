@@ -42,14 +42,15 @@ SYSTEM_EXT_PRIVATE_SEPOLICY_DIRS += vendor/dc1/sepolicy
 # 120Hz, launcher p50 15ms). The panel is physically monochrome, so the
 # matrix only reweighted the gray mapping — not worth losing hw overlays.
 
-# --- Panel geometry: bezel compensation via waterfall insets ----------------
+# --- Panel geometry: bezel compensation via a masked waterfall cutout -------
 # The outer 8px ring of the 1200x1600 panel sits under the bezel. Stock
 # "compensated" with display_size_forced=1184x1584, but WM aspect-fits the
 # forced size to the panel (verified: physicalFrame (2,0)-(1197,1600)), so
 # top/bottom stayed flush under the bezel and everything got a blurry 1.01x
-# scale. Instead run native 1:1 and declare 8px waterfall display insets
-# (rro/DC1Overlay), which pull the status bar, nav and app safe areas off
-# the covered ring — the mechanism curved-edge phones use.
+# scale. Instead declare the ring as 8px waterfall display insets and mask
+# it (rro/DC1Overlay): the logical display is 1184x1584, placed 1:1 at (8,8).
+# Insets alone are not enough: the real display size stays 1200x1600, and
+# apps that size themselves from it are cut off at the right and bottom.
 
 # --- Config overlay + package removals (see rro/DC1Overlay/Android.bp) ------
 PRODUCT_PACKAGES += \

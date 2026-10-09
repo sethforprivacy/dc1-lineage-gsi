@@ -1,0 +1,15 @@
+diff --git a/cmds/bootanimation/BootAnimation.cpp b/cmds/bootanimation/BootAnimation.cpp
+index c175d78..29539bd 100644
+--- a/cmds/bootanimation/BootAnimation.cpp
++++ b/cmds/bootanimation/BootAnimation.cpp
+@@ -1818,6 +1818,10 @@ void BootAnimation::handleViewport(nsecs_t timestep, const Display& display) {
+     }
+ 
+     int delta = timestep * mTargetInset / ms2ns(200);
++    if (delta < 1) {
++        // Small insets round the per-frame step down to zero; keep the crop moving.
++        delta = 1;
++    }
+     mCurrentInset += delta;
+ }
+ 
