@@ -53,7 +53,7 @@ dc1-excluded-hardware.xml  Masks camera + light-sensor features from stock /vend
 rro/                       Static RROs: framework config + settings-provider defaults
 local_manifests/           repo manifest snippet for the build tree
 patches/                   Direct-to-upstream patches + apply.sh
-tools/                     CI + local scripts (detect, validate, build)
+tools/                     CI + local scripts (detect, validate, build, backup)
 docs/                      hardware, ROM choice, build, flash, amber details
 papermode-quick/           No-root paper-mode tweaks for stock (adb, no flash)
 amber-root/                Legacy root tooling (amber LED discovery + Magisk bridge pre-GSI)

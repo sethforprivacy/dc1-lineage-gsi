@@ -83,9 +83,12 @@ re-sparses — one artifact, flashed with the same `fastboot flash system`.
 
 ## Get back to stock
 
-Reboot to fastbootd and restore the stock `system` (and `vbmeta`) images you
-backed up in the beginning; or use Daylight's OTA tooling
-(adiktofsugar/daylight) to re-image the unit.
+Full procedure: [`docs/restore-stock.md`](restore-stock.md) — MediaTek SP Flash
+Tool, **Download Only** mode, stock `0.9.9.58`, then Daylight's OTA path
+(`1.0.18` → Android 16). Short form: reboot to fastbootd and restore the stock
+`system`/`vbmeta` images you backed up in the beginning; that only reverts the
+system slot, so use the SP Flash Tool flow if you want a genuine stock unit
+back (correct preloader/boot/`vbmeta`, no disabled verity).
 
 ## Troubleshooting
 
